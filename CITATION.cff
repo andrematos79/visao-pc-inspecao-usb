@@ -6,6 +6,7 @@ type: software
 authors:
   - family-names: "Matos"
     given-names: "A. G."
+    orcid: "https://orcid.org/0000-0001-5178-7796"
     affiliation: "Universidade do Estado do Amazonas (UEA)"
 
 version: "v1.0.1-industrial"
