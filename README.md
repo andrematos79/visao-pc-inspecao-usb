@@ -1,4 +1,4 @@
-
+*********/
 # SVC – Sistema de Visão Computacional para Inspeção Automatizada de Molas em Carregadores
 
 ## Visão Geral
@@ -253,6 +253,112 @@ O tempo de retenção pode ser configurado para:
 - 90 dias
 
 Isso evita saturação de disco e garante operação contínua.
+
+---
+---
+
+# Resultados de Validação Industrial
+
+Após o desenvolvimento e treinamento do modelo, o sistema foi avaliado em condições representativas do ambiente industrial.
+
+## Dataset
+
+Para treinamento e validação do modelo foi utilizado um **dataset proprietário composto por aproximadamente 1170 imagens reais** capturadas diretamente da linha de produção.
+
+As imagens foram coletadas utilizando a mesma câmera utilizada no sistema final, garantindo consistência entre o ambiente de treinamento e operação.
+
+As imagens foram organizadas em três classes:
+
+| Classe | Descrição |
+|------|------|
+| OK | Mola corretamente posicionada |
+| NG_MISSING | Mola ausente |
+| NG_MISALIGNED | Mola presente porém desalinhada |
+
+Cada imagem contém duas regiões de interesse correspondentes às posições esquerda e direita da mola.
+
+---
+
+## Teste Experimental em Peças Reais
+
+Após o treinamento, o sistema foi avaliado utilizando **100 unidades reais de carregadores**.
+
+Distribuição do conjunto de teste:
+
+| Classe | Quantidade |
+|------|------|
+| OK | 50 |
+| NG_MISALIGNED | 30 |
+| NG_MISSING | 20 |
+
+Durante o teste, o sistema executou:
+
+- captura automática de imagem
+- recorte das regiões de interesse
+- inferência da rede neural
+- aplicação da lógica DUAL
+- registro do resultado
+
+---
+
+## Desempenho do Sistema
+
+Durante os testes experimentais foram observados os seguintes resultados:
+
+- **Alta acurácia de classificação**
+- detecção consistente de desalinhamentos
+- identificação confiável de ausência de mola
+
+A lógica **DUAL baseada em duas ROIs** mostrou-se particularmente eficaz para reduzir falsos positivos e aumentar a robustez do sistema.
+
+---
+
+## Tempo de Ciclo
+
+O tempo médio de processamento observado foi aproximadamente:
+1.93 segundos por unidade
+
+
+Esse tempo inclui:
+
+- captura da imagem
+- processamento da rede neural
+- tomada de decisão
+- registro do resultado
+
+Esse desempenho é compatível com o fluxo de produção da linha.
+
+---
+
+## Robustez em Ambiente Industrial
+
+Durante a operação na linha de produção, o sistema demonstrou robustez frente a:
+
+- variações de iluminação
+- pequenas variações de posicionamento do produto
+- ruído visual do ambiente industrial
+
+Os recursos adicionais implementados, como:
+
+- coleta automática de dataset  
+- registro de evidências  
+- monitoramento de disco  
+- política de retenção automática  
+
+contribuem para a **manutenção e evolução contínua do sistema**.
+
+---
+
+## Impacto Industrial
+
+A substituição da inspeção manual por inspeção automatizada proporciona:
+
+- redução de variabilidade humana
+- aumento da repetibilidade da inspeção
+- maior rastreabilidade do processo
+- padronização do critério de decisão
+
+Esses fatores tornam o sistema adequado para aplicações industriais de inspeção visual automatizada.
 
 ---
 
