@@ -1,6 +1,11 @@
 *********/
-# SVC – Sistema de Visão Computacional para Inspeção Automatizada de Molas em Carregadores
+# SVC – Computer Vision System for Spring Inspection
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19207171.svg)](https://doi.org/10.5281/zenodo.19207171)
+
+Industrial computer vision system for automated inspection of springs in mobile phone chargers.
+
+This repository contains the validated industrial version of the SVC system used for automated quality inspection.
 ## Visão Geral
 
 Este projeto apresenta um **sistema de visão computacional de baixo custo para inspeção automática de molas metálicas** instaladas dentro de carregadores de celular.
