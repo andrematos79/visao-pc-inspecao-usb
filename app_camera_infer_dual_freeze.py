@@ -498,6 +498,9 @@ DEFAULT_NORMALIZE_LAB = True
 DEFAULT_THRESH_PRESENTE = 0.50
 DEFAULT_THR_NG_OK = 0.45
 DEFAULT_THR_NG_NG = 0.60
+DEFAULT_TEMPORAL_SMOOTHING = True
+DEFAULT_TEMPORAL_N_FRAMES = 3
+DEFAULT_TEMPORAL_DELAY_MS = 25
 
 ENG_PIN = "1234"  # PIN DO MODO ENGENHARIA
 
@@ -861,6 +864,9 @@ def init_session():
     st.session_state.setdefault("prod_thr_ng_ng", DEFAULT_THR_NG_NG)
     st.session_state.setdefault("prod_margin_abs", 0.10)
     st.session_state.setdefault("prod_img_size", (224, 224))
+    st.session_state.setdefault("temporal_smoothing_enabled", DEFAULT_TEMPORAL_SMOOTHING)
+    st.session_state.setdefault("temporal_n_frames", DEFAULT_TEMPORAL_N_FRAMES)
+    st.session_state.setdefault("temporal_delay_ms", DEFAULT_TEMPORAL_DELAY_MS)
 
     # modo + PIN
     st.session_state.setdefault("user_mode", "OPERADOR")
@@ -1170,6 +1176,9 @@ def apply_config_to_session(cfg: dict) -> None:
     st.session_state["threshold_ng_ok"] = float(cfg.get("threshold_ng_ok", DEFAULT_THR_NG_OK))
     st.session_state["threshold_ng_ng"] = float(cfg.get("threshold_ng_ng", DEFAULT_THR_NG_NG))
     st.session_state["normalize_lab_equalize"] = bool(cfg.get("normalize_lab_equalize", True))
+    st.session_state["temporal_smoothing_enabled"] = bool(cfg.get("temporal_smoothing_enabled", DEFAULT_TEMPORAL_SMOOTHING))
+    st.session_state["temporal_n_frames"] = int(cfg.get("temporal_n_frames", DEFAULT_TEMPORAL_N_FRAMES))
+    st.session_state["temporal_delay_ms"] = int(cfg.get("temporal_delay_ms", DEFAULT_TEMPORAL_DELAY_MS))
 
     roi = cfg.get("roi", {}) or {}
     esq = roi.get("ESQ", {}) or {}
@@ -1206,6 +1215,9 @@ def collect_config_from_session() -> dict:
         "threshold_ng_ok": float(st.session_state.get("threshold_ng_ok", DEFAULT_THR_NG_OK)),
         "threshold_ng_ng": float(st.session_state.get("threshold_ng_ng", DEFAULT_THR_NG_NG)),
         "normalize_lab_equalize": bool(st.session_state.get("normalize_lab_equalize", True)),
+        "temporal_smoothing_enabled": bool(st.session_state.get("temporal_smoothing_enabled", DEFAULT_TEMPORAL_SMOOTHING)),
+        "temporal_n_frames": int(st.session_state.get("temporal_n_frames", DEFAULT_TEMPORAL_N_FRAMES)),
+        "temporal_delay_ms": int(st.session_state.get("temporal_delay_ms", DEFAULT_TEMPORAL_DELAY_MS)),
         "roi": {
             "ESQ": {
                 "x0": int(st.session_state.get("roi_esq_x0", 8)),
@@ -2464,6 +2476,154 @@ def run_infer_dual_on_uploaded_frame(frame_bgr: np.ndarray, file_name: str = "up
         st.session_state["last_result"] = None
         return None
 
+
+
+def _merge_temporal_results(results: list[dict]) -> dict:
+    """Agrega múltiplas inferências pela média das probabilidades e recompõe a decisão final."""
+    if not results:
+        raise RuntimeError("Sem resultados para agregação temporal.")
+
+    last = results[-1]
+    th_presente = float(st.session_state.get("threshold_presente", DEFAULT_THRESH_PRESENTE))
+    thr_ng_ok = float(st.session_state.get("threshold_ng_ok", DEFAULT_THR_NG_OK))
+    thr_ng_ng = float(st.session_state.get("threshold_ng_ng", DEFAULT_THR_NG_NG))
+    margin_abs = float(st.session_state.get("prod_margin_abs", 0.10))
+
+    p_pres_esq_vals = [float(r.get("p_pres_esq", 0.0)) for r in results]
+    p_pres_dir_vals = [float(r.get("p_pres_dir", 0.0)) for r in results]
+    prob_ng_esq_vals = [float(r.get("prob_ng_esq", 0.0)) for r in results]
+    prob_ng_dir_vals = [float(r.get("prob_ng_dir", 0.0)) for r in results]
+    prob_ok_esq_vals = [float(r.get("prob_ok_esq", 1.0)) for r in results]
+    prob_ok_dir_vals = [float(r.get("prob_ok_dir", 1.0)) for r in results]
+
+    p_pres_esq = float(np.mean(p_pres_esq_vals))
+    p_pres_dir = float(np.mean(p_pres_dir_vals))
+    prob_ng_esq = float(np.mean(prob_ng_esq_vals))
+    prob_ng_dir = float(np.mean(prob_ng_dir_vals))
+    prob_ok_esq = float(np.mean(prob_ok_esq_vals))
+    prob_ok_dir = float(np.mean(prob_ok_dir_vals))
+
+    missing_esq = (p_pres_esq < th_presente)
+    missing_dir = (p_pres_dir < th_presente)
+
+    decision_band_esq = "MISSING" if missing_esq else "OK_SAFE"
+    decision_band_dir = "MISSING" if missing_dir else "OK_SAFE"
+    margin_esq = 1.0
+    margin_dir = 1.0
+    attention_esq = False
+    attention_dir = False
+    cls_mis_esq = "OK"
+    cls_mis_dir = "OK"
+
+    if not missing_esq:
+        cls_mis_esq, decision_band_esq, margin_esq, attention_esq = decide_misaligned_status(
+            prob_ng_esq, prob_ok_esq, thr_ng_ok, thr_ng_ng, margin_abs=margin_abs
+        )
+    if not missing_dir:
+        cls_mis_dir, decision_band_dir, margin_dir, attention_dir = decide_misaligned_status(
+            prob_ng_dir, prob_ok_dir, thr_ng_ok, thr_ng_ng, margin_abs=margin_abs
+        )
+
+    defect_esq = "NG_MISSING" if missing_esq else ("NG_MISALIGNED" if cls_mis_esq == "NG_MISALIGNED" else "OK")
+    defect_dir = "NG_MISSING" if missing_dir else ("NG_MISALIGNED" if cls_mis_dir == "NG_MISALIGNED" else "OK")
+
+    if defect_esq == "NG_MISSING" or defect_dir == "NG_MISSING":
+        defect_type = "NG_MISSING"
+    elif defect_esq == "NG_MISALIGNED" or defect_dir == "NG_MISALIGNED":
+        defect_type = "NG_MISALIGNED"
+    else:
+        defect_type = "OK"
+
+    attention_flag = bool(attention_esq or attention_dir)
+    aprovado = (defect_type == "OK")
+
+    merged = dict(last)
+    merged.update({
+        "p_pres_esq": p_pres_esq,
+        "p_pres_dir": p_pres_dir,
+        "conf_esq": p_pres_esq,
+        "conf_dir": p_pres_dir,
+        "prob_ng_esq": prob_ng_esq,
+        "prob_ng_dir": prob_ng_dir,
+        "prob_ok_esq": prob_ok_esq,
+        "prob_ok_dir": prob_ok_dir,
+        "thr_ng": float(thr_ng_ng),
+        "thr_ng_ok": float(thr_ng_ok),
+        "thr_ng_ng": float(thr_ng_ng),
+        "margin_esq": float(margin_esq),
+        "margin_dir": float(margin_dir),
+        "decision_band_esq": decision_band_esq,
+        "decision_band_dir": decision_band_dir,
+        "attention_esq": bool(attention_esq),
+        "attention_dir": bool(attention_dir),
+        "attention_flag": attention_flag,
+        "defect_esq": defect_esq,
+        "defect_dir": defect_dir,
+        "defect_type": defect_type,
+        "ok_esq": defect_esq == "OK",
+        "ok_dir": defect_dir == "OK",
+        "aprovado": aprovado,
+        "temporal_smoothing_used": True,
+        "temporal_n_frames": len(results),
+        "temporal_p_pres_esq": p_pres_esq_vals,
+        "temporal_p_pres_dir": p_pres_dir_vals,
+        "temporal_p_ng_esq": prob_ng_esq_vals,
+        "temporal_p_ng_dir": prob_ng_dir_vals,
+    })
+    return merged
+
+
+def infer_dual_with_optional_temporal(base_frame_bgr: np.ndarray, cap=None) -> dict:
+    """Executa a inferência normal ou com suavização temporal (média entre múltiplos frames)."""
+    use_temporal = bool(st.session_state.get("temporal_smoothing_enabled", DEFAULT_TEMPORAL_SMOOTHING))
+    n_frames = max(1, int(st.session_state.get("temporal_n_frames", DEFAULT_TEMPORAL_N_FRAMES)))
+    delay_ms = max(0, int(st.session_state.get("temporal_delay_ms", DEFAULT_TEMPORAL_DELAY_MS)))
+
+    if (not use_temporal) or n_frames <= 1:
+        res = infer_dual_on_frame(base_frame_bgr)
+        res["temporal_smoothing_used"] = False
+        res["temporal_n_frames"] = 1
+        return res
+
+    results = [infer_dual_on_frame(base_frame_bgr)]
+
+    cap_ok = cap is not None
+    try:
+        cap_ok = cap_ok and bool(cap.isOpened())
+    except Exception:
+        cap_ok = False
+
+    if cap_ok:
+        for _ in range(n_frames - 1):
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+            frame_extra = read_fresh_frame(cap, flush_grabs=1, sleep_ms=max(0, delay_ms), extra_reads=0)
+            if frame_extra is None:
+                continue
+            results.append(infer_dual_on_frame(frame_extra))
+
+    return _merge_temporal_results(results)
+
+
+def infer_dual_with_optional_temporal_timeout(base_frame_bgr, cap=None, timeout_s: float = 6.0):
+    """Executa a inferência opcional com timeout (protege UI em campo)."""
+    out = {"res": None, "err": None}
+
+    def _worker():
+        try:
+            out["res"] = infer_dual_with_optional_temporal(base_frame_bgr, cap=cap)
+        except Exception as e:
+            out["err"] = e
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    t.join(timeout=timeout_s)
+
+    if t.is_alive():
+        raise TimeoutError(f"Timeout em infer_dual_with_optional_temporal() após {timeout_s}s")
+    if out["err"] is not None:
+        raise out["err"]
+    return out["res"]
 
 
 def update_metrics_and_history(res: dict) -> None:
@@ -4059,6 +4219,19 @@ if is_eng:
                 value=bool(st.session_state.get("normalize_lab_equalize", True)),
                 key="normalize_lab_equalize")
 
+    st.checkbox("Suavização temporal de inferência",
+                value=bool(st.session_state.get("temporal_smoothing_enabled", DEFAULT_TEMPORAL_SMOOTHING)),
+                key="temporal_smoothing_enabled",
+                help="Faz a média das probabilidades em múltiplos frames para reduzir falso NG por reflexo, tremida e ruído.")
+
+    st.slider("Qtd. de frames da suavização", 1, 5,
+              value=int(st.session_state.get("temporal_n_frames", DEFAULT_TEMPORAL_N_FRAMES)),
+              step=1, key="temporal_n_frames")
+
+    st.slider("Atraso entre frames (ms)", 0, 120,
+              value=int(st.session_state.get("temporal_delay_ms", DEFAULT_TEMPORAL_DELAY_MS)),
+              step=5, key="temporal_delay_ms")
+
     st.sidebar.subheader("ROI (%)")
     # (se quiser sliders de ROI aqui, você pode adicionar depois)
 
@@ -4543,11 +4716,12 @@ def run_capture_infer_dual(trigger_source: str = "button"):
     # Tempo de teste (para log)
     start_dt = datetime.now()
     try:
+        cap_for_temporal = st.session_state.get("cap") if st.session_state.get("camera_on", False) else None
         if trigger_source == "sensor":
-            res = infer_dual_on_frame_timeout(src, timeout_s=4.0)
+            res = infer_dual_with_optional_temporal_timeout(src, cap=cap_for_temporal, timeout_s=6.0)
         else:
             print("[DEBUG] entrando na inferência...")
-            res = infer_dual_on_frame(src)
+            res = infer_dual_with_optional_temporal(src, cap=cap_for_temporal)
             print("[DEBUG] inferência retornou.")
         end_dt = datetime.now()
         test_time_sec = (end_dt - start_dt).total_seconds()
