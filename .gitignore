@@ -31,3 +31,7 @@ Thumbs.db
 *.ckpt
 *.pb
 *.onnx
+
+# Permitir dataset USB
+!dataset_usb/
+!dataset_usb/**
