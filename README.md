@@ -11,7 +11,7 @@ Industrial AI-based computer vision platform for automated detection of **USB co
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19323586.svg)](https://doi.org/10.5281/zenodo.19323586)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Release](https://img.shields.io/badge/version-v0.9--usb-blue)
+![Release](https://img.shields.io/badge/version-v0.1.0--usb-blue)
 
 ---
 
