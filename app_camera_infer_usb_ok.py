@@ -493,7 +493,8 @@ def append_trace_log_csv(row: dict):
         "timestamp", "inspection_id", "system_name", "equipment_id",
         "mes_enabled", "traceability_enabled", "production_order", "serial_number",
         "model_name", "line", "operation_mode", "source",
-        "predicted_class", "final_result", "confidence",
+        "result_left", "result_right", "final_result",
+        "confidence_left", "confidence_right",
         "image_path", "xml_path", "mes_status",
     ]
     file_exists = TRACE_LOG_PATH.exists()
@@ -5013,6 +5014,7 @@ def run_capture_infer_dual(trigger_source: str = "button"):
 
         timestamp = end_dt.strftime("%Y-%m-%d %H:%M:%S")
         th_local = float(st.session_state.get("threshold_presente", DEFAULT_THRESH_PRESENTE))
+        cs_code, cs_detail = get_cs_code(res, th_local)
 
         total = int(st.session_state.get("cnt_total", 0))
         ok = int(st.session_state.get("cnt_ok", 0))
@@ -5022,33 +5024,11 @@ def run_capture_infer_dual(trigger_source: str = "button"):
         cam_index_local = int(st.session_state.get("cam_index_last", st.session_state.get("camera_index", 0)))
         use_dshow_local = bool(st.session_state.get("use_dshow", True))
 
-        predicted_class = str(
-            res.get("usb_pred_class")
-            or res.get("pred_class")
-            or res.get("defect_type")
-            or "OK"
-        ).strip().upper()
-        probs_usb = res.get("usb_probs") or res.get("probs") or {}
-        confidence = float(
-            res.get("confidence", max(probs_usb.values()) if probs_usb else 0.0)
-        )
-
-        # No USB, o resultado final deve seguir a classe prevista do classificador.
-        final_result = predicted_class
-        result_left = predicted_class
-        result_right = predicted_class
-        conf_left = confidence
-        conf_right = confidence
-        cs_code, cs_detail = get_cs_code(
-            {
-                **res,
-                "defect_type": final_result,
-                "usb_pred_class": predicted_class,
-                "pred_class": predicted_class,
-                "confidence": confidence,
-            },
-            th_local,
-        )
+        final_result = str(res.get("defect_type", "OK" if res.get("aprovado", False) else "NG"))
+        result_left = str(res.get("defect_esq", "OK"))
+        result_right = str(res.get("defect_dir", "OK"))
+        conf_left = float(res.get("p_pres_esq", 0.0))
+        conf_right = float(res.get("p_pres_dir", 0.0))
         image_stub = f"in_memory_cam{cam_index_local}_{end_dt.strftime('%Y%m%d_%H%M%S')}"
 
         row = {
@@ -5056,10 +5036,13 @@ def run_capture_infer_dual(trigger_source: str = "button"):
             "modelo": st.session_state.get("product_model", ""),
             "linha": st.session_state.get("line_name", ""),
             "resultado_final": final_result,
-            "classe_predita": predicted_class,
-            "confianca": round(confidence, 4),
+            "defect_esq": result_left,
+            "defect_dir": result_right,
             "cs_code": cs_code,
             "cs_detail": cs_detail,
+            "p_esq": round(conf_left, 4),
+            "p_dir": round(conf_right, 4),
+            "th_presente": float(th_local),
             "camera_index": cam_index_local,
             "directshow": use_dshow_local,
             "source": trigger_source,  # sensor/button
@@ -5085,63 +5068,66 @@ def run_capture_infer_dual(trigger_source: str = "button"):
         serial_number = normalize_serial_qr(st.session_state.get("serial_qr_code", ""))
         operation_mode = str(st.session_state.get("user_mode", "OPERADOR"))
 
+        # garante que confidence exista
+        confidence = float(confidence) if confidence is not None else 0.0
+
         xml_path_str = ""
         mes_status = "LOCAL"
         if mes_enabled:
             try:
                 xml_path_str = create_inspection_xml(
-                    inspection_id=inspection_id,
-                    system_name=system_name,
-                    equipment_id=equipment_id,
-                    mes_enabled=mes_enabled,
-                    traceability_enabled=traceability_enabled,
-                    production_order=production_order,
-                    serial_number=serial_number,
-                    model_name=str(st.session_state.get("product_model", "")),
-                    line_name=str(st.session_state.get("line_name", "")),
-                    operation_mode=operation_mode,
-                    result_left=predicted_class,
-                    result_right=predicted_class,
-                    final_result=final_result,
-                    confidence_left=confidence,
-                    confidence_right=confidence,
-                    image_path=image_stub,
-                    mes_status="PENDENTE",
-                    source=trigger_source,
-                )
-                mes_status = "PENDENTE"
-                st.session_state["last_xml_path"] = xml_path_str
-            except Exception as xml_err:
-                mes_status = f"ERRO_XML: {xml_err}"
-                st.session_state["last_xml_path"] = ""
-        else:
-            st.session_state["last_xml_path"] = ""
+                inspection_id=inspection_id,
+                system_name=system_name,
+                equipment_id=equipment_id,
+                mes_enabled=mes_enabled,
+                traceability_enabled=traceability_enabled,
+                production_order=production_order,
+                serial_number=serial_number,
+                model_name=str(st.session_state.get("product_model", "")),
+                line_name=str(st.session_state.get("line_name", "")),
+                operation_mode=operation_mode,
+                result_left=predicted_class,
+                result_right=predicted_class,
+                final_result=final_result,
+                confidence_left=confidence,
+                confidence_right=confidence,
+                image_path=image_stub,
+                mes_status="PENDENTE",
+                source=trigger_source,
+        )
+        mes_status = "PENDENTE"
+        st.session_state["last_xml_path"] = xml_path_str
+    except Exception as xml_err:
+        mes_status = f"ERRO_XML: {xml_err}"
+        st.session_state["last_xml_path"] = ""
+else:
+    st.session_state["last_xml_path"] = ""
 
-        st.session_state["last_mes_status"] = mes_status
+st.session_state["last_mes_status"] = mes_status
 
-        append_trace_log_csv({
-            "timestamp": timestamp,
-            "inspection_id": inspection_id,
-            "system_name": system_name,
-            "equipment_id": equipment_id,
-            "mes_enabled": mes_enabled,
-            "traceability_enabled": traceability_enabled,
-            "production_order": production_order,
-            "serial_number": serial_number,
-            "model_name": str(st.session_state.get("product_model", "")),
-            "line": str(st.session_state.get("line_name", "")),
-            "operation_mode": operation_mode,
-            "source": trigger_source,
-            "predicted_class": predicted_class,
-            "final_result": final_result,
-            "confidence": f"{confidence:.6f}",
-            "image_path": image_stub,
-            "xml_path": xml_path_str,
-            "mes_status": mes_status,
-        })
+append_trace_log_csv({
+    "timestamp": timestamp,
+    "inspection_id": inspection_id,
+    "system_name": system_name,
+    "equipment_id": equipment_id,
+    "mes_enabled": mes_enabled,
+    "traceability_enabled": traceability_enabled,
+    "production_order": production_order,
+    "serial_number": serial_number,
+    "model_name": str(st.session_state.get("product_model", "")),
+    "line": str(st.session_state.get("line_name", "")),
+    "operation_mode": operation_mode,
+    "source": trigger_source,
+    "predicted_class": predicted_class,
+    "final_result": final_result,
+    "confidence": f"{confidence:.6f}",
+    "image_path": image_stub,
+    "xml_path": xml_path_str,
+    "mes_status": mes_status,
+})
 
-        if traceability_enabled:
-            st.session_state["serial_qr_code"] = ""
+if traceability_enabled:
+    st.session_state["serial_qr_code"] = ""
 
     except Exception as e:
         st.session_state["last_error"] = f"Erro na inferência: {e}"
