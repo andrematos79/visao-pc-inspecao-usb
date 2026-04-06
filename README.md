@@ -8,7 +8,7 @@ Industrial AI-based computer vision platform for automated detection of **USB co
 
 **Inspection Mode:** Single ROI USB Connector Inspection
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19323586.svg)](https://doi.org/10.5281/zenodo.19323586)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19445660.svg)](https://doi.org/10.5281/zenodo.19445660)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Release](https://img.shields.io/badge/version-v0.1.0-blue)
@@ -206,7 +206,7 @@ If you use this system in research or industrial projects, please cite:
 Matos, A. G. (2026)  
 **SVC USB – Computer Vision System for USB Connector Inspection**  
 Zenodo  
-https://doi.org/10.5281/zenodo.19323586
+https://doi.org/10.5281/zenodo.19445660
 
 ---
 
