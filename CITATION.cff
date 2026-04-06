@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+title: "SVC USB — Computer Vision System for USB Connector Inspection"
+message: "If you use this software, please cite it as below."
+type: software
+
+authors:
+  - family-names: "Matos"
+    given-names: "Andre Gama de"
+    orcid: "https://orcid.org/0000-0001-5178-7796"
+    affiliation: "UNIFATECIE"
+
+version: "v0.1.0"
+date-released: 2026-04-06
+
+doi: 10.5281/zenodo.19323586
+
+repository-code: "https://github.com/andrematos79/visao-pc-inspecao-usb"
+
+abstract: >
+ Computer vision system based on convolutional neural networks
+ for automated inspection of USB connectors used in mobile phone chargers.
+ This release corresponds to a research prototype currently under
+ industrial ROI calibration.
+ The system evolved from an academic prototype into a version
+ validated in a real industrial environment.
+
+keywords:
+ - computer vision
+ - industrial inspection
+ - deep learning
+ - convolutional neural networks
+ - automated visual inspection
+ - manufacturing
+ - quality control
+ - industrial automation
+
+license: "MIT"
+
