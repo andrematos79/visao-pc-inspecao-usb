@@ -1,37 +1,49 @@
 # Ambiente virtual
+.venv_usb/
 .venv_svc/
 venv/
 .env
 
-# Datasets
-dataset/
-dataset_auto_evidencias/
-dataset_coleta/
-dataset_coleta_industrial/
-dataset_mola_roi_raw/
-dataset_mola_roi_split/
-dataset_products/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Logs e experimentos
+# Logs e runtime
 logs/
-experiments/
+runtime_status/
+*.log
 
 # Relatórios gerados
 reports/
 
-# Pastas locais
-Disco Local/
+# Arquivos temporários
+*.tmp
+*.bak
 
-# Sistema
+# Dataset / treinamento
+dataset/
+dataset_usb_v15/
+dataset_usb_v15_3class_split/
+dataset_usb_live_capture/
+captures_usb/
+outputs_usb_v15_3class/
+upload_tests/
+sem_github/
+
+# Sistema operacional
 .DS_Store
 Thumbs.db
 
-# Modelos gigantes de treino
-*.h5
-*.ckpt
-*.pb
-*.onnx
+# VSCode
+.vscode/
 
-# Permitir dataset USB
-!dataset_usb/
-!dataset_usb/**
+# Jupyter
+.ipynb_checkpoints/
+
+# Windows
+desktop.ini
+
+# Arquivos pesados
+sem-sem_github/
