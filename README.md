@@ -8,7 +8,7 @@ Industrial AI-based computer vision platform for automated detection of **USB co
 
 **Inspection Mode:** Single ROI USB Connector Inspection
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19445660.svg)](https://doi.org/10.5281/zenodo.19445660)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20332828.svg)](https://doi.org/10.5281/zenodo.20332828)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Release](https://img.shields.io/badge/version-v0.1.0-blue)
@@ -205,7 +205,7 @@ If you use this system in research or industrial projects, please cite:
 Matos, A. G. (2026)  
 **SVC USB – Computer Vision System for USB Connector Inspection**  
 Zenodo  
-https://doi.org/10.5281/zenodo.19445660
+https://doi.org/10.5281/zenodo.20332828
 
 ---
 
@@ -240,7 +240,7 @@ Industrial AI-based computer vision platform for automated detection of USB conn
 
 **Inspection Mode:** Single ROI USB Connector Inspection
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19445660.svg)](https://doi.org/10.5281/zenodo.19445660)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20332828.svg)](https://doi.org/10.5281/zenodo.20332828)
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Release](https://img.shields.io/badge/version-v2.1.0_Production-blue)
@@ -544,7 +544,7 @@ If you use this system in research or industrial projects, please cite:
 Matos, A. G. (2026)
 SVC USB – Computer Vision System for USB Connector Inspection
 Zenodo
-https://doi.org/10.5281/zenodo.19445660
+https://doi.org/10.5281/zenodo.20332828
 
 Author
 
