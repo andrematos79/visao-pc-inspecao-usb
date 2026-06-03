@@ -1,0 +1,20 @@
+{
+  "OK": {
+    "total": 391,
+    "train": 273,
+    "val": 58,
+    "test": 60
+  },
+  "NG_DESALINHADO": {
+    "total": 255,
+    "train": 178,
+    "val": 38,
+    "test": 39
+  },
+  "NG_DANIFICADO": {
+    "total": 215,
+    "train": 150,
+    "val": 32,
+    "test": 33
+  }
+}

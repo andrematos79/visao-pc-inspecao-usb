@@ -40,7 +40,7 @@ The platform evolved from the **SVC Spring Inspection architecture**, adapting t
 
 Operational pipeline:
 
-Sensor Trigger  
+QRCode / Scanner Trigger  
 ↓  
 Image Acquisition (USB Industrial Camera)  
 ↓  
@@ -171,6 +171,43 @@ pip install -r requirements.txt
 
 ---
 
+Performance Validation
+
+The system was validated under industrial operating conditions using QRCode-triggered inspection workflow.
+
+Measured performance:
+
+QRCode → Result: approximately 0.20–0.21 seconds
+QRCode → Core Communication: approximately 0.05 seconds
+Image Capture: approximately 0.05 seconds
+AI Inference (MobileNetV2): approximately 0.09 seconds
+Post-processing and Logging: approximately 0.02 seconds
+
+The measured inspection cycle time is significantly lower than the production takt time requirement of approximately 1.75 seconds per unit (2055 units/hour), demonstrating that the inspection platform is not the bottleneck of the manufacturing process.
+
+---
+
+Industrial Pilot Status
+
+Current Status: Production Candidate
+
+The system completed laboratory validation and extended bench testing using real production samples.
+
+Current validated features:
+
+MobileNetV2 multiclass classification
+QRCode / Serial Number traceability
+Automatic scanner-triggered inspection
+Automated reporting (HTML/PDF)
+Email notification system
+Industrial audit interface
+Production statistics monitoring
+Cycle time monitoring dashboard
+
+The next project phase consists of temporary deployment on the production line for pilot validation under real manufacturing conditions.
+
+---
+
 # Running the System
 
 streamlit run app_camera_infer_usb.py
@@ -296,7 +333,7 @@ Sensor Trigger
 → Operator Interface + Production Logging  
 → Traceability + Reporting + Email Notification
 
-The system supports automatic triggering using an Arduino Uno microcontroller connected through serial communication.
+The system supports automatic triggering using an scanner connected through usb communication.
 
 ---
 
@@ -306,7 +343,7 @@ Industrial PC (Windows 10 / 11)
 Intel Core i3 12th Gen or higher  
 8 GB RAM minimum  
 Industrial USB camera  
-Arduino Uno microcontroller  
+USB Scanner
 E18-D80NK proximity sensor
 
 ---

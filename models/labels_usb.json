@@ -1,6 +1,5 @@
 {
-  "0": "NG_CORPO_ESTRANHO",
-  "1": "NG_DANIFICADO",
-  "2": "NG_DESALINHADO",
-  "3": "OK"
+  "0": "OK",
+  "1": "NG_DESALINHADO",
+  "2": "NG_DANIFICADO"
 }

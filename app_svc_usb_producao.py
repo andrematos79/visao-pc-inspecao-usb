@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime, date
 from email.message import EmailMessage
 
-APP_FOOTER_VERSION = "v2.1.0"
+APP_FOOTER_VERSION = "v17.2-refresh500"
 APP_RELEASE_STATUS = "Production"
 
 import streamlit as st
@@ -43,6 +43,11 @@ def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
 
+def epoch_ms():
+    """Timestamp de parede em ms para medir QRCode -> resultado entre app e core."""
+    return round(time.time() * 1000.0, 3)
+
+
 def read_json(path, default=None):
     try:
         p = Path(path)
@@ -79,6 +84,9 @@ def current_context():
     cfg = load_config()
     return {
         "serial_number": normalize_serial_qr(ctx.get("serial_number", "")),
+        "serial_pending": bool(ctx.get("serial_pending", False)),
+        "last_scan_epoch_ms": ctx.get("last_scan_epoch_ms"),
+        "last_scan_at": ctx.get("last_scan_at", ""),
         "production_order": str(ctx.get("production_order", cfg.get("production_order", ""))).strip(),
         "equipment_id": str(ctx.get("equipment_id", cfg.get("equipment_id", "SVC01"))).strip(),
         "line_name": str(ctx.get("line_name", cfg.get("line_name", "L01"))).strip(),
@@ -90,29 +98,68 @@ def current_context():
 
 
 def save_context(ctx):
+    """Salva o contexto de produção/rastreabilidade sem sobrescrever command.json.
+
+    No modo Scanner Trigger, o QRCode envia primeiro o serial para current_serial.json
+    e depois grava command.json com inspect_once. Se save_context também gravar
+    set_context em command.json durante o rerun do Streamlit, ele pode sobrescrever
+    o comando inspect_once antes do core ler. Por isso, contexto e comandos ficam
+    separados: contexto vai para current_serial.json; inspeção vai para command.json.
+    """
     payload = current_context()
     payload.update(ctx or {})
     payload["timestamp"] = now()
     payload["serial_number"] = normalize_serial_qr(payload.get("serial_number", ""))
+    if "serial_number" in (ctx or {}):
+        payload["serial_pending"] = bool(payload["serial_number"])
     write_json(CURRENT_CONTEXT_PATH, payload)
-    send_command("set_context", source="streamlit_mes_context", context=payload)
     return payload
 
 
 
 def commit_serial_scan():
-    """Callback do campo de scanner.
-    Ao pressionar ENTER (scanner HID), salva o SN atual e limpa o campo visual,
-    evitando concatenação do próximo QRCode no final do anterior.
+    """Callback do campo de scanner HID.
+    Ao pressionar ENTER, salva o SN/QRCode e, se habilitado, dispara automaticamente
+    uma inspeção 1x usando o próprio scanner como trigger industrial.
     """
     scan = normalize_serial_qr(st.session_state.get("serial_scan_input", ""))
     if not scan:
         return
+
+    cfg = load_config()
     ctx = current_context()
+    qr_epoch_ms = epoch_ms()
+    qr_iso = now()
     ctx["serial_number"] = scan
-    ctx["last_scan_at"] = now()
-    save_context(ctx)
+    ctx["serial_pending"] = True
+    ctx["last_scan_at"] = qr_iso
+    ctx["last_scan_epoch_ms"] = qr_epoch_ms
+    ctx = save_context(ctx)
+
     st.session_state["last_scanned_serial"] = scan
+    st.session_state["last_scanner_trigger_at"] = qr_iso
+    st.session_state["last_qr_epoch_ms"] = qr_epoch_ms
+
+    scanner_trigger_enabled = bool(cfg.get("scanner_trigger_enabled", True))
+    block_reason = inspection_block_reason(ctx, cfg)
+
+    if scanner_trigger_enabled and not block_reason:
+        send_command(
+            "inspect_once",
+            source="scanner_hid_qrcode",
+            trigger="scanner_enter",
+            serial_number=scan,
+            qr_scan_epoch_ms=qr_epoch_ms,
+            qr_scan_at=qr_iso,
+        )
+        st.session_state["last_scanner_trigger_status"] = f"Inspeção iniciada pelo scanner para SN {scan}"
+        st.session_state["scanner_pending_refresh"] = True
+        st.session_state["scanner_pending_since"] = time.time()
+    elif scanner_trigger_enabled and block_reason:
+        st.session_state["last_scanner_trigger_status"] = f"Scanner leu SN {scan}, mas a inspeção foi bloqueada: {block_reason}"
+    else:
+        st.session_state["last_scanner_trigger_status"] = f"Scanner leu SN {scan}. Disparo automático por scanner está desativado."
+
     # Limpa o buffer visual do scanner para a próxima peça.
     st.session_state["serial_scan_input"] = ""
 
@@ -131,7 +178,7 @@ def inspection_block_reason(ctx, cfg):
 
 
 def send_command(command, **kwargs):
-    payload = {"timestamp": now(), "command": command, **kwargs}
+    payload = {"timestamp": now(), "command_epoch_ms": epoch_ms(), "command": command, **kwargs}
     write_json(COMMAND_PATH, payload)
     return payload
 
@@ -261,9 +308,9 @@ def send_email_direct(to, subject, body, attachment=None):
         s.send_message(msg)
 
 
-st.set_page_config(page_title="SVC USB v2.0", layout="wide")
+st.set_page_config(page_title="SVC USB v17.1 Cycle Time", layout="wide")
 st.title(APP_VERSION)
-st.caption("Operação: OK/REPROVADO. Auditoria: causa provável detalhada por classe NG.")
+st.caption("Operação: OK/REPROVADO. Trigger por scanner QRCode + auditoria por classe NG.")
 
 if "eng_unlocked" not in st.session_state:
     st.session_state.eng_unlocked = False
@@ -286,9 +333,9 @@ with st.sidebar:
         """, unsafe_allow_html=True)
     with st.expander("ℹ️ Sobre o Sistema", expanded=False):
         st.markdown("### Sistema: SVC USB – Computer Vision System for USB Inspection")
-        st.markdown("- **Versão:** v2.1.0 - Production Validation")
-        st.markdown("- **Status:** Pré-validação industrial com sensor")
-        st.markdown("- **Release:** 21/05/2026")
+        st.markdown("- **Versão:** v2.2.0 - Scanner Trigger Mode")
+        st.markdown("- **Status:** Pré-validação industrial com disparo por scanner")
+        st.markdown("- **Release:** 02/06/2026")
         st.markdown("- **Aplicação:** Automated Visual Inspection of USB Connectors")
         st.markdown("- **Desenvolvedor:** André Gama de Matos")
         st.markdown("- **Orientador Acadêmico:** Prof. Lucas Delapria Dias dos Santos")
@@ -313,13 +360,14 @@ with st.sidebar:
 
     st.header("Controle de Linha")
     auto = st.checkbox("Auto-refresh", value=True)
-    interval = st.slider("Refresh (ms)", 500, 5000, 1000, 100)
+    interval = st.slider("Refresh (ms)", 250, 5000, 250, 50)
 
     st.divider()
     st.subheader("🏭 Produção / MES")
     ctx0 = current_context()
     mes_enabled = st.checkbox("Ativar MES", value=bool(cfg.get("mes_enabled", ctx0.get("mes_enabled", False))))
     traceability_enabled = st.checkbox("Ativar rastreabilidade por Serial / QRCode", value=bool(cfg.get("traceability_enabled", ctx0.get("traceability_enabled", False))))
+    scanner_trigger_enabled = st.checkbox("Disparar inspeção automaticamente ao bipar QRCode", value=bool(cfg.get("scanner_trigger_enabled", True)))
     production_order = st.text_input("Ordem de Produção", value=str(ctx0.get("production_order", cfg.get("production_order", ""))), placeholder="Ex.: BK4338BRI_Y25")
     equipment_id = st.text_input("Equipment ID", value=str(ctx0.get("equipment_id", cfg.get("equipment_id", "SVC01"))))
     line_name = st.text_input("Linha", value=str(ctx0.get("line_name", cfg.get("line_name", "L01"))))
@@ -350,12 +398,18 @@ with st.sidebar:
         "equipment_id": equipment_id,
         "line_name": line_name,
         "product_model": product_model,
+        "scanner_trigger_enabled": bool(scanner_trigger_enabled),
+        # No modo scanner, a inspeção é disparada pelo ENTER do leitor HID.
+        # Mantemos o sensor serial desligado por padrão para reduzir custo e evitar falso trigger.
+        "serial_enabled": False if bool(scanner_trigger_enabled) else bool(cfg.get("serial_enabled", False)),
     })
     save_config(cfg)
     st.caption(f"MES: {'ATIVO' if mes_enabled else 'DESLIGADO'} | Rastreabilidade: {'ATIVA' if traceability_enabled else 'DESLIGADA'}")
     st.caption(f"Serial atual: {ctx.get('serial_number') or '---'}")
+    if st.session_state.get("last_scanner_trigger_status"):
+        st.info(st.session_state.get("last_scanner_trigger_status"))
     if st.button("🧹 Limpar serial atual", use_container_width=True):
-        ctx = save_context({"serial_number": ""})
+        ctx = save_context({"serial_number": "", "serial_pending": False})
         send_command("clear_serial", source="streamlit_mes_clear")
         st.success("Serial atual limpo.")
     st.divider()
@@ -445,6 +499,18 @@ k3.metric("Total", sm.get("total", 0))
 k4.metric("OK", sm.get("ok", 0))
 k5.metric("NG", sm.get("ng", 0))
 k6.metric("Yield", f"{sm.get('yield_pct', 0)}%")
+
+cycle_time = res.get("cycle_time", {}) if isinstance(res, dict) else {}
+if cycle_time:
+    m1, m2, m3, m4, m5 = st.columns(5)
+    total_ms = cycle_time.get("qr_to_result_ms") or cycle_time.get("command_to_result_ms") or 0
+    m1.metric("QR → Resultado", f"{float(total_ms)/1000:.2f} s" if total_ms else "---")
+    m2.metric("QR → Core", f"{float(cycle_time.get('qr_to_command_seen_ms', 0))/1000:.2f} s" if cycle_time.get('qr_to_command_seen_ms') is not None else "---")
+    m3.metric("Captura", f"{float(cycle_time.get('capture_ms', 0))/1000:.2f} s")
+    m4.metric("Inferência", f"{float(cycle_time.get('inference_pipeline_ms', 0))/1000:.2f} s")
+    m5.metric("Pós/log", f"{float(cycle_time.get('postprocess_to_result_ms', 0))/1000:.2f} s")
+    with st.expander("⏱️ Detalhamento do tempo de ciclo da última peça", expanded=False):
+        st.json(cycle_time)
 ctx_top = current_context()
 st.caption(f"OP: {ctx_top.get('production_order') or '---'} | Serial atual: {ctx_top.get('serial_number') or '---'} | Equip.: {ctx_top.get('equipment_id') or '---'} | MES: {'ATIVO' if ctx_top.get('mes_enabled') else 'DESLIGADO'} | Rastreab.: {'ATIVA' if ctx_top.get('traceability_enabled') else 'DESLIGADA'}")
 
@@ -530,13 +596,33 @@ with tabs[3]:
         smtp_password = st.text_input("Senha SMTP", cfg_email.get("smtp_password", ""), type="password", disabled=not st.session_state.eng_unlocked)
         email_to = st.text_input("Destinatário(s)", cfg_email.get("to", ""), disabled=not st.session_state.eng_unlocked)
         if st.button("Salvar config e-mail", disabled=not st.session_state.eng_unlocked):
-            write_json(EMAIL_CONFIG_PATH, {"smtp_server": smtp_server, "smtp_port": smtp_port, "smtp_user": smtp_user, "smtp_password": smtp_password, "smtp_use_tls": True, "to": email_to, "subject": "Relatório SVC USB"})
+            write_json(EMAIL_CONFIG_PATH, {
+                "smtp_server": smtp_server,
+                "smtp_port": smtp_port,
+                "smtp_user": smtp_user,
+                "smtp_password": smtp_password,
+                "smtp_use_tls": True,
+                "to": email_to,
+                "subject": "[SVC USB] Relatório de Auditoria"
+            })
             st.success("Configuração salva.")
         if st.button("Enviar último relatório", disabled=not st.session_state.eng_unlocked):
             reps = latest_reports()
-            attach = str(reps[0]) if reps else ""
-            send_command("send_email", to=email_to, attachment=attach, subject="Relatório SVC USB", body="Segue relatório do SVC USB.")
-            st.success("Comando enviado ao core.")
+            latest_html = next((r for r in reps if r.suffix.lower() == ".html"), None)
+            latest_pdf = next((r for r in reps if r.suffix.lower() == ".pdf"), None)
+            attachments = [str(p) for p in [latest_html, latest_pdf] if p and p.exists()]
+            if not attachments:
+                st.warning("Nenhum relatório HTML/PDF encontrado. Gere um relatório antes de enviar.")
+            else:
+                send_command(
+                    "send_email",
+                    to=email_to,
+                    attachments=attachments,
+                    html_path=str(latest_html) if latest_html else "",
+                    subject="[SVC USB] Relatório de Auditoria",
+                    body="Segue resumo do relatório de auditoria do SVC USB. Relatório completo em HTML e PDF anexos."
+                )
+                st.success("Comando enviado ao core.")
 
 with tabs[4]:
     st.subheader("Controle de Espaço em Disco")
@@ -617,5 +703,14 @@ st.markdown(
 )
 
 if auto:
-    time.sleep(interval / 1000.0)
+    # Após bip do scanner, faz alguns ciclos de atualização rápida para buscar
+    # last_result.json/last_frame_overlay.jpg recém-gravados pelo core.
+    pending = bool(st.session_state.get("scanner_pending_refresh", False))
+    if pending:
+        elapsed = time.time() - float(st.session_state.get("scanner_pending_since", time.time()))
+        if elapsed > 4.0:
+            st.session_state["scanner_pending_refresh"] = False
+        time.sleep(0.25)
+    else:
+        time.sleep(interval / 1000.0)
     st.rerun()

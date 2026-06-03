@@ -31,7 +31,7 @@ TRACE_LOG_PATH = LOG_DIR / "inspection_trace_log.csv"
 MES_XML_DIR = LOG_DIR / "mes_xml"
 CURRENT_CONTEXT_PATH = RUNTIME / "current_serial.json"
 AUTO_REPORT_STATE_PATH = RUNTIME / "auto_report_state.json"
-CORE_VERSION = "SVC_USB_v2.1_external_production_sensor_log_sn_fix"
+CORE_VERSION = "SVC_USB_v17_2_refresh500"
 OFFICIAL_CLASSES = ["OK", "NG_DESALINHADO", "NG_DANIFICADO"]
 
 for p in [RUNTIME, LOG_DIR, REPORTS_DIR, MODELS_DIR, MES_XML_DIR]:
@@ -40,6 +40,11 @@ for p in [RUNTIME, LOG_DIR, REPORTS_DIR, MODELS_DIR, MES_XML_DIR]:
 
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+
+def epoch_ms():
+    """Timestamp de parede em ms para medir eventos entre app e core."""
+    return round(time.time() * 1000.0, 3)
 
 
 def atomic_write_json(path: Path, payload: dict, retries: int = 20, delay: float = 0.03):
@@ -98,8 +103,8 @@ def load_config():
     cfg.setdefault("auto_trigger_enabled", False)
     cfg.setdefault("auto_trigger_interval_s", 2.0)
     cfg.setdefault("retention_days", 30)
-    cfg.setdefault("class_mode", "3class")
-    cfg.setdefault("dataset_classes", OFFICIAL_CLASSES)
+    cfg["class_mode"] = "3class"
+    cfg["dataset_classes"] = OFFICIAL_CLASSES
     cfg.setdefault("serial_enabled", False)
     cfg.setdefault("serial_port", "COM1")
     cfg.setdefault("serial_baud", 115200)
@@ -132,27 +137,15 @@ def load_config():
     cfg.setdefault("evidence_auto_enabled", True)
     cfg.setdefault("evidence_save_ok_attention", True)
     cfg.setdefault("ok_attention_confidence_max", 0.60)
+    cfg.setdefault("cycle_time_logger_enabled", True)
     return cfg
 
 
 def load_labels():
-    candidates = [
-        BASE_DIR / "labels_3class.json",
-        BASE_DIR / "outputs_usb_v15_3class" / "labels_3class.json",
-        BASE_DIR / "outputs_usb_v15_3class" / "labels.json",
-        MODELS_DIR / "labels_3class.json",
-        MODELS_DIR / "labels.json",
-    ]
-    for p in candidates:
-        data = read_json(p, None)
-        if isinstance(data, list) and data:
-            return [str(x) for x in data]
-        if isinstance(data, dict) and data:
-            try:
-                return [str(data[str(i)]) if str(i) in data else str(data[i]) for i in range(len(data))]
-            except Exception:
-                return [str(v) for _, v in sorted(data.items())]
-    return OFFICIAL_CLASSES
+    # 3CLASS LOCK — não lê labels antigos de 4 classes.
+    # O SVC USB operacional deve trabalhar apenas com:
+    # OK, NG_DESALINHADO, NG_DANIFICADO.
+    return list(OFFICIAL_CLASSES)
 
 
 def load_model():
@@ -476,7 +469,7 @@ def update_summary(result):
 def append_csv(result):
     fields = [
         "timestamp", "cycle", "source", "serial_number", "production_order", "equipment_id", "line_name", "product_model", "inspection_id",
-        "decision", "class_name", "confidence", "ok", "probs", "roi", "latency_total_ms", "image_roi", "image_overlay", "xml_path", "mes_status"
+        "decision", "class_name", "confidence", "ok", "probs", "roi", "latency_total_ms", "cycle_qr_to_result_ms", "cycle_capture_ms", "cycle_inference_pipeline_ms", "cycle_postprocess_ms", "image_roi", "image_overlay", "xml_path", "mes_status"
     ]
     exists = ensure_csv_header(fields)
     with open(CSV_LOG_PATH, "a", newline="", encoding="utf-8") as f:
@@ -500,6 +493,10 @@ def append_csv(result):
             "probs": json.dumps(result.get("probs", {}), ensure_ascii=False),
             "roi": json.dumps(result.get("roi", [])),
             "latency_total_ms": result.get("latency", {}).get("total"),
+            "cycle_qr_to_result_ms": result.get("cycle_time", {}).get("qr_to_result_ms", ""),
+            "cycle_capture_ms": result.get("cycle_time", {}).get("capture_ms", ""),
+            "cycle_inference_pipeline_ms": result.get("cycle_time", {}).get("inference_pipeline_ms", ""),
+            "cycle_postprocess_ms": result.get("cycle_time", {}).get("postprocess_to_result_ms", ""),
             "image_roi": result.get("image_paths", {}).get("roi", ""),
             "image_overlay": result.get("image_paths", {}).get("overlay", ""),
             "xml_path": result.get("xml_path", ""),
@@ -507,10 +504,12 @@ def append_csv(result):
         })
 
 
-def inspect_frame(frame, model, labels, cfg, source, cycle):
+def inspect_frame(frame, model, labels, cfg, source, cycle, cycle_timing=None):
     ctx = current_context(cfg)
     validate_operation_context(cfg, ctx)
     inspection_id = generate_inspection_id()
+    cycle_timing = dict(cycle_timing or {})
+    cycle_timing.setdefault("inspect_frame_start_epoch_ms", epoch_ms())
     t0 = time.perf_counter()
     x0, y0, x1, y1 = roi_pixels(frame, cfg)
     roi = frame[y0:y1, x0:x1].copy()
@@ -520,6 +519,36 @@ def inspect_frame(frame, model, labels, cfg, source, cycle):
     pred, conf, raw = classify(labels, probs)
     decision = "OK" if pred == "OK" else "REPROVADO"
     t2 = time.perf_counter()
+    infer_done_epoch_ms = epoch_ms()
+    cycle_timing.setdefault("infer_done_epoch_ms", infer_done_epoch_ms)
+    cycle_time = {
+        "qr_scan_at": cycle_timing.get("qr_scan_at", ""),
+        "qr_scan_epoch_ms": cycle_timing.get("qr_scan_epoch_ms"),
+        "command_epoch_ms": cycle_timing.get("command_epoch_ms"),
+        "command_seen_epoch_ms": cycle_timing.get("command_seen_epoch_ms"),
+        "capture_begin_epoch_ms": cycle_timing.get("capture_begin_epoch_ms"),
+        "capture_done_epoch_ms": cycle_timing.get("capture_done_epoch_ms"),
+        "inspect_frame_start_epoch_ms": cycle_timing.get("inspect_frame_start_epoch_ms"),
+        "infer_done_epoch_ms": cycle_timing.get("infer_done_epoch_ms"),
+        "qr_to_command_seen_ms": None,
+        "command_to_capture_begin_ms": None,
+        "capture_ms": None,
+        "capture_to_infer_done_ms": None,
+        "inference_pipeline_ms": round((t2 - t0) * 1000, 2),
+        "roi_crop_ms": round((t1 - t0) * 1000, 2),
+        "model_inference_ms": round((t2 - t1) * 1000, 2),
+    }
+    try:
+        if cycle_time["qr_scan_epoch_ms"] is not None and cycle_time["command_seen_epoch_ms"] is not None:
+            cycle_time["qr_to_command_seen_ms"] = round(float(cycle_time["command_seen_epoch_ms"]) - float(cycle_time["qr_scan_epoch_ms"]), 2)
+        if cycle_time["command_epoch_ms"] is not None and cycle_time["capture_begin_epoch_ms"] is not None:
+            cycle_time["command_to_capture_begin_ms"] = round(float(cycle_time["capture_begin_epoch_ms"]) - float(cycle_time["command_epoch_ms"]), 2)
+        if cycle_time["capture_begin_epoch_ms"] is not None and cycle_time["capture_done_epoch_ms"] is not None:
+            cycle_time["capture_ms"] = round(float(cycle_time["capture_done_epoch_ms"]) - float(cycle_time["capture_begin_epoch_ms"]), 2)
+        if cycle_time["capture_done_epoch_ms"] is not None:
+            cycle_time["capture_to_infer_done_ms"] = round(float(cycle_time["infer_done_epoch_ms"]) - float(cycle_time["capture_done_epoch_ms"]), 2)
+    except Exception as e:
+        cycle_time["cycle_time_calc_error"] = repr(e)
     result = {
         "timestamp": now(),
         "cycle": cycle,
@@ -540,6 +569,7 @@ def inspect_frame(frame, model, labels, cfg, source, cycle):
         "roi": [x0, y0, x1, y1],
         "core_version": CORE_VERSION,
         "latency": {"capture": round((t1 - t0) * 1000, 2), "inference": round((t2 - t1) * 1000, 2), "total": round((t2 - t0) * 1000, 2)},
+        "cycle_time": cycle_time,
     }
     overlay = draw_overlay(frame, cfg, decision)
     should_save = bool(cfg.get("save_all_captures", False)) or pred != "OK" or bool(cfg.get("save_ng_images", True))
@@ -559,11 +589,21 @@ def inspect_frame(frame, model, labels, cfg, source, cycle):
         except Exception as e:
             log_event("mes_xml_error", cycle=cycle, error=repr(e))
             result["mes_status"] = "XML_ERROR"
+    result_epoch_ms = epoch_ms()
+    result["cycle_time"]["result_available_epoch_ms"] = result_epoch_ms
+    try:
+        if result["cycle_time"].get("qr_scan_epoch_ms") is not None:
+            result["cycle_time"]["qr_to_result_ms"] = round(result_epoch_ms - float(result["cycle_time"].get("qr_scan_epoch_ms")), 2)
+        if result["cycle_time"].get("command_epoch_ms") is not None:
+            result["cycle_time"]["command_to_result_ms"] = round(result_epoch_ms - float(result["cycle_time"].get("command_epoch_ms")), 2)
+        result["cycle_time"]["postprocess_to_result_ms"] = round(result_epoch_ms - float(result["cycle_time"].get("infer_done_epoch_ms", result_epoch_ms)), 2)
+    except Exception as e:
+        result["cycle_time"]["cycle_time_total_calc_error"] = repr(e)
     atomic_write_json(LAST_RESULT_PATH, result)
     update_summary(result)
     append_csv(result)
     append_trace_log(result, ctx)
-    log_event("infer_end", source=source, cycle=cycle, decision=decision, result=pred, confidence=conf, total_ms=result["latency"]["total"], roi=result["roi"], serial_number=result.get("serial_number", ""), production_order=result.get("production_order", ""), xml_path=result.get("xml_path", ""))
+    log_event("infer_end", source=source, cycle=cycle, decision=decision, result=pred, confidence=conf, total_ms=result["latency"]["total"], cycle_time=result.get("cycle_time", {}), roi=result["roi"], serial_number=result.get("serial_number", ""), production_order=result.get("production_order", ""), xml_path=result.get("xml_path", ""))
 
     # LOG/SN FIX — consome o SN após gravar last_result/CSV/trace/XML.
     # Na próxima inspeção, se não houver novo bip/scan, o log será gravado com serial_number em branco.
@@ -578,10 +618,27 @@ def inspect_frame(frame, model, labels, cfg, source, cycle):
 
 
 def write_heartbeat(state, cycle=0, extra=None):
+    """Atualiza o heartbeat sem derrubar o core.
+
+    Em Windows, o arquivo heartbeat.json pode ficar bloqueado por leitura
+    momentânea do Streamlit, antivírus ou Explorer. Esse arquivo é apenas
+    diagnóstico; falha de escrita nele não pode parar a inspeção.
+    """
     payload = {"timestamp": now(), "state": state, "cycle": cycle, "core_version": CORE_VERSION, "pid": os.getpid()}
     if extra:
         payload.update(extra)
-    atomic_write_json(HEARTBEAT_PATH, payload)
+    try:
+        atomic_write_json(HEARTBEAT_PATH, payload, retries=5, delay=0.02)
+    except PermissionError as e:
+        try:
+            log_event("heartbeat_write_skipped", error=repr(e), state=state, cycle=cycle)
+        except Exception:
+            pass
+    except Exception as e:
+        try:
+            log_event("heartbeat_write_error", error=repr(e), state=state, cycle=cycle)
+        except Exception:
+            pass
 
 
 def handle_dataset_copy(req):
@@ -645,32 +702,93 @@ def handle_report(req):
     # ==========================================================
     # HTML = RESUMO EXECUTIVO PARA CORPO/E-MAIL
     # ==========================================================
+    cfg = load_config()
+    ctx = current_context(cfg)
+    shift_time = str(req.get("shift_time", "")).strip()
+    generated_at = now()
+    report_context = "Relatório automático de turno" if str(req.get("source", "")).lower() == "auto_shift_report" else "Relatório de Auditoria"
+    subtitle = f"{report_context} - {shift_time}" if shift_time else report_context
+
+    # Garante que as classes oficiais apareçam no resumo mesmo quando a contagem for zero.
+    display_classes = []
+    for cls_name in OFFICIAL_CLASSES:
+        if cls_name not in display_classes:
+            display_classes.append(cls_name)
+    for cls_name in sorted(classes.keys()):
+        if cls_name not in display_classes:
+            display_classes.append(cls_name)
+
+    def _pct_total(value):
+        return round(100 * int(value) / max(total, 1), 2)
+
+    def _pct_ng(value, cls_name):
+        return round(100 * int(value) / ng_total, 2) if str(cls_name).startswith("NG") else "-"
+
     class_rows_html = "".join(
-        f"<tr><td>{k}</td><td>{v}</td><td>{round(100*v/max(total,1),2)}%</td>"
-        f"<td>{round(100*v/ng_total,2) if str(k).startswith('NG') else '-'}</td></tr>"
-        for k, v in sorted(classes.items())
+        f"<tr>"
+        f"<td style='padding:8px;border:1px solid #d0d7de'>{cls_name}</td>"
+        f"<td style='padding:8px;border:1px solid #d0d7de;text-align:center'>{int(classes.get(cls_name, 0))}</td>"
+        f"<td style='padding:8px;border:1px solid #d0d7de;text-align:center'>{_pct_total(classes.get(cls_name, 0))}%</td>"
+        f"<td style='padding:8px;border:1px solid #d0d7de;text-align:center'>{_pct_ng(classes.get(cls_name, 0), cls_name)}</td>"
+        f"</tr>"
+        for cls_name in display_classes
     )
 
-    html = f"""<!doctype html><html><head><meta charset='utf-8'><title>Resumo SVC USB</title>
-<style>
-body{{font-family:Arial;margin:28px;color:#222}}
-h1{{color:#0b3b75}}
-.card{{display:inline-block;border:1px solid #ccc;border-radius:10px;padding:12px 18px;margin:6px;min-width:70px;text-align:center}}
-table{{border-collapse:collapse;width:100%;margin:12px 0}}
-td,th{{border:1px solid #ccc;padding:6px 8px;font-size:13px}}
-th{{background:#efefef}}
-.note{{background:#f6f8fb;border-left:4px solid #0b3b75;padding:10px;margin-top:12px}}
-</style></head><body>
-<h1>Resumo do Relatório de Auditoria — SVC USB</h1>
-<p><b>Gerado em:</b> {now()}<br><b>Período:</b> {period}<br><b>Sistema:</b> SVC USB v2.1 Production</p>
-<div class='card'><b>Total</b><br>{total}</div>
-<div class='card'><b>OK</b><br>{ok}</div>
-<div class='card'><b>NG</b><br>{ng}</div>
-<div class='card'><b>Yield</b><br>{yield_pct}%</div>
-<h2>Causas prováveis</h2>
-<table><tr><th>Classe</th><th>Quantidade</th><th>% Total</th><th>% entre NG</th></tr>{class_rows_html}</table>
-<div class='note'>Operação: decisão principal OK/REPROVADO. As classes NG são causa provável para rastreabilidade e análise de causa raiz. O relatório PDF anexo contém o detalhamento das últimas inspeções.</div>
-</body></html>"""
+    html = f"""<!doctype html>
+<html>
+<head>
+<meta charset='utf-8'>
+<title>Resumo do Relatório de Auditoria - SVC USB</title>
+</head>
+<body style="font-family:Arial,Helvetica,sans-serif;color:#111827;margin:0;padding:24px;background:#ffffff">
+  <div style="max-width:760px;margin:0 auto">
+    <h2 style="margin:0 0 16px 0;color:#0b3b75;font-size:22px">
+      Resumo do Relatório de Auditoria – SVC USB
+    </h2>
+
+    <p style="margin:0 0 14px 0;font-size:14px;line-height:1.45">
+      <b>Tipo:</b> {subtitle}<br>
+      <b>Emitido em:</b> {generated_at}<br>
+      <b>Período:</b> {period}<br>
+      <b>Linha:</b> {ctx.get('line_name') or '---'} &nbsp; | &nbsp;
+      <b>Equipamento:</b> {ctx.get('equipment_id') or '---'}<br>
+      <b>Modelo:</b> {ctx.get('product_model') or '---'} &nbsp; | &nbsp;
+      <b>OP:</b> {ctx.get('production_order') or '---'}
+    </p>
+
+    <table style="border-collapse:collapse;margin:12px 0 18px 0;font-size:14px">
+      <tr>
+        <th style="padding:8px 12px;border:1px solid #9ca3af;background:#f3f4f6">Total</th>
+        <th style="padding:8px 12px;border:1px solid #9ca3af;background:#f3f4f6">OK</th>
+        <th style="padding:8px 12px;border:1px solid #9ca3af;background:#f3f4f6">NG</th>
+        <th style="padding:8px 12px;border:1px solid #9ca3af;background:#f3f4f6">Yield</th>
+      </tr>
+      <tr>
+        <td style="padding:10px 16px;border:1px solid #9ca3af;text-align:center">{total}</td>
+        <td style="padding:10px 16px;border:1px solid #9ca3af;text-align:center;color:#087c22;font-weight:bold">{ok}</td>
+        <td style="padding:10px 16px;border:1px solid #9ca3af;text-align:center;color:#b00000;font-weight:bold">{ng}</td>
+        <td style="padding:10px 16px;border:1px solid #9ca3af;text-align:center;font-weight:bold">{yield_pct}%</td>
+      </tr>
+    </table>
+
+    <p style="margin:10px 0 6px 0;font-size:15px"><b>Falhas / causas prováveis:</b></p>
+    <table style="border-collapse:collapse;width:100%;max-width:620px;font-size:13px">
+      <tr>
+        <th style="padding:8px;border:1px solid #d0d7de;background:#f3f4f6;text-align:left">Classe</th>
+        <th style="padding:8px;border:1px solid #d0d7de;background:#f3f4f6">Quantidade</th>
+        <th style="padding:8px;border:1px solid #d0d7de;background:#f3f4f6">% Total</th>
+        <th style="padding:8px;border:1px solid #d0d7de;background:#f3f4f6">% entre NG</th>
+      </tr>
+      {class_rows_html}
+    </table>
+
+    <p style="margin:18px 0 0 0;font-size:13px;line-height:1.45;color:#374151">
+      Relatório completo em HTML e PDF anexos.<br>
+      Relatório gerado automaticamente pelo sistema <b>SVC USB v2.1 Production</b>.
+    </p>
+  </div>
+</body>
+</html>"""
     html_path.write_text(html, encoding="utf-8")
 
     # ==========================================================
@@ -1095,17 +1213,26 @@ def execute_command(cmd, cap, model, labels, cycle):
         ctx = clear_current_serial()
         return cap, {"ok": True, "serial_cleared": True, "context": ctx}
     if name in ("inspect_once", "test_once"):
-        log_event("capture_begin", source=cmd.get("source", "manual"), cycle=cycle)
+        command_seen_epoch_ms = epoch_ms()
+        cycle_timing = {
+            "qr_scan_epoch_ms": cmd.get("qr_scan_epoch_ms"),
+            "qr_scan_at": cmd.get("qr_scan_at", ""),
+            "command_epoch_ms": cmd.get("command_epoch_ms"),
+            "command_seen_epoch_ms": command_seen_epoch_ms,
+        }
+        log_event("capture_begin", source=cmd.get("source", "manual"), cycle=cycle, cycle_timing=cycle_timing)
+        cycle_timing["capture_begin_epoch_ms"] = epoch_ms()
         frame, cap = safe_capture(cap, cfg)
-        log_event("infer_begin", source=cmd.get("source", "manual"), cycle=cycle, roi=list(roi_pixels(frame, cfg)))
-        result = inspect_frame(frame, model, labels, cfg, cmd.get("source", "manual"), cycle)
+        cycle_timing["capture_done_epoch_ms"] = epoch_ms()
+        log_event("infer_begin", source=cmd.get("source", "manual"), cycle=cycle, roi=list(roi_pixels(frame, cfg)), cycle_timing=cycle_timing)
+        result = inspect_frame(frame, model, labels, cfg, cmd.get("source", "manual"), cycle, cycle_timing=cycle_timing)
         return cap, {"ok": True, "result": result}
     if name == "inspect_file":
         img_path = Path(cmd.get("image_path", ""))
         frame = cv2.imread(str(img_path))
         if frame is None:
             raise RuntimeError(f"Não abriu imagem: {img_path}")
-        result = inspect_frame(frame, model, labels, cfg, "uploaded_file", cycle)
+        result = inspect_frame(frame, model, labels, cfg, "uploaded_file", cycle, cycle_timing={"command_epoch_ms": cmd.get("command_epoch_ms"), "command_seen_epoch_ms": epoch_ms(), "capture_begin_epoch_ms": epoch_ms(), "capture_done_epoch_ms": epoch_ms()})
         return cap, {"ok": True, "result": result}
     if name == "save_dataset":
         return cap, {"ok": True, **handle_dataset_copy(cmd)}
@@ -1129,7 +1256,7 @@ def execute_command(cmd, cap, model, labels, cycle):
 
 def main():
     print("=" * 70)
-    print("SVC USB v2.1 - CORE EXTERNO DE PRODUÇÃO + SENSOR")
+    print("SVC USB v2.2 - CORE EXTERNO DE PRODUÇÃO + SCANNER TRIGGER")
     print("=" * 70)
     cfg = load_config()
     log_event("core_start", config=cfg)
@@ -1147,7 +1274,7 @@ def main():
     }
     cycle = 0
     last_cmd_ts = None
-    write_heartbeat("RUNNING", cycle, {"camera_index": cfg.get("camera_index"), "mode": "MANUAL/SENSOR", "model_path": model_path, "labels": labels})
+    write_heartbeat("RUNNING", cycle, {"camera_index": cfg.get("camera_index"), "mode": "MANUAL/SCANNER/SENSOR", "model_path": model_path, "labels": labels})
     try:
         while True:
             cfg = load_config()
@@ -1206,8 +1333,10 @@ def main():
                     if settle_s:
                         time.sleep(settle_s)
                     cycle += 1
+                    sensor_capture_begin_ms = epoch_ms()
                     frame, cap = safe_capture(cap, cfg)
-                    inspect_frame(frame, model, labels, cfg, "sensor_serial", cycle)
+                    sensor_capture_done_ms = epoch_ms()
+                    inspect_frame(frame, model, labels, cfg, "sensor_serial", cycle, cycle_timing={"capture_begin_epoch_ms": sensor_capture_begin_ms, "capture_done_epoch_ms": sensor_capture_done_ms})
                 except Exception as e:
                     err = {"timestamp": now(), "command": "sensor_serial", "cycle": cycle, "ok": False, "error": repr(e), "traceback": traceback.format_exc()}
                     atomic_write_json(ACK_PATH, err)
@@ -1216,8 +1345,10 @@ def main():
             if bool(cfg.get("auto_trigger_enabled", False)):
                 time.sleep(float(cfg.get("auto_trigger_interval_s", 2.0)))
                 cycle += 1
+                auto_capture_begin_ms = epoch_ms()
                 frame, cap = safe_capture(cap, cfg)
-                inspect_frame(frame, model, labels, cfg, "auto_timer", cycle)
+                auto_capture_done_ms = epoch_ms()
+                inspect_frame(frame, model, labels, cfg, "auto_timer", cycle, cycle_timing={"capture_begin_epoch_ms": auto_capture_begin_ms, "capture_done_epoch_ms": auto_capture_done_ms})
 
             # Relatórios automáticos ao final dos turnos configurados
             maybe_auto_shift_report(cfg)

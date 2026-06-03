@@ -1,0 +1,293 @@
+{
+  "classes": [
+    "OK",
+    "NG_DESALINHADO",
+    "NG_DANIFICADO"
+  ],
+  "total_test_images": 132,
+  "total_errors": 22,
+  "accuracy": 0.8333333333333334,
+  "confusion_matrix": [
+    [
+      46,
+      6,
+      8
+    ],
+    [
+      1,
+      34,
+      4
+    ],
+    [
+      2,
+      1,
+      30
+    ]
+  ],
+  "errors": [
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\20260402_082533_703525__OK__SEM_SERIAL__raw.jpg",
+      "filename": "20260402_082533_703525__OK__SEM_SERIAL__raw.jpg",
+      "true": "OK",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.5117318034172058,
+      "probs": {
+        "OK": 0.3014869689941406,
+        "NG_DESALINHADO": 0.1867811232805252,
+        "NG_DANIFICADO": 0.5117318034172058
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\20260402_090448_137634__OK__SEM_SERIAL__raw.jpg",
+      "filename": "20260402_090448_137634__OK__SEM_SERIAL__raw.jpg",
+      "true": "OK",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.4350875914096832,
+      "probs": {
+        "OK": 0.34543606638908386,
+        "NG_DESALINHADO": 0.2194763720035553,
+        "NG_DANIFICADO": 0.4350875914096832
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\20260402_093539_050600__OK__SEM_SERIAL__raw.jpg",
+      "filename": "20260402_093539_050600__OK__SEM_SERIAL__raw.jpg",
+      "true": "OK",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.5145837068557739,
+      "probs": {
+        "OK": 0.4454215466976166,
+        "NG_DESALINHADO": 0.039994798600673676,
+        "NG_DANIFICADO": 0.5145837068557739
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\20260407_095012_613485__OK__SEM_SERIAL__roi.jpg",
+      "filename": "20260407_095012_613485__OK__SEM_SERIAL__roi.jpg",
+      "true": "OK",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.59308260679245,
+      "probs": {
+        "OK": 0.3788951337337494,
+        "NG_DESALINHADO": 0.028022225946187973,
+        "NG_DANIFICADO": 0.59308260679245
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\20260407_095210_502206__OK__SEM_SERIAL__roi.jpg",
+      "filename": "20260407_095210_502206__OK__SEM_SERIAL__roi.jpg",
+      "true": "OK",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.6041578650474548,
+      "probs": {
+        "OK": 0.3173217475414276,
+        "NG_DESALINHADO": 0.07852036505937576,
+        "NG_DANIFICADO": 0.6041578650474548
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\20260407_100033_816945__OK__SEM_SERIAL__roi.jpg",
+      "filename": "20260407_100033_816945__OK__SEM_SERIAL__roi.jpg",
+      "true": "OK",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.5518168807029724,
+      "probs": {
+        "OK": 0.3854197859764099,
+        "NG_DESALINHADO": 0.06276332587003708,
+        "NG_DANIFICADO": 0.5518168807029724
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\USB_20260602_115312_549403_OK.jpg",
+      "filename": "USB_20260602_115312_549403_OK.jpg",
+      "true": "OK",
+      "pred": "NG_DESALINHADO",
+      "confidence": 0.7863313555717468,
+      "probs": {
+        "OK": 0.0332086980342865,
+        "NG_DESALINHADO": 0.7863313555717468,
+        "NG_DANIFICADO": 0.18045993149280548
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\USB_20260602_120500_698090_OK.jpg",
+      "filename": "USB_20260602_120500_698090_OK.jpg",
+      "true": "OK",
+      "pred": "NG_DESALINHADO",
+      "confidence": 0.3709890842437744,
+      "probs": {
+        "OK": 0.32154709100723267,
+        "NG_DESALINHADO": 0.3709890842437744,
+        "NG_DANIFICADO": 0.3074638247489929
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\USB_20260602_121359_030874_OK.jpg",
+      "filename": "USB_20260602_121359_030874_OK.jpg",
+      "true": "OK",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.7671952247619629,
+      "probs": {
+        "OK": 0.16155891120433807,
+        "NG_DESALINHADO": 0.07124588638544083,
+        "NG_DANIFICADO": 0.7671952247619629
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\USB_20260602_121411_273430_OK.jpg",
+      "filename": "USB_20260602_121411_273430_OK.jpg",
+      "true": "OK",
+      "pred": "NG_DESALINHADO",
+      "confidence": 0.4708186984062195,
+      "probs": {
+        "OK": 0.29826104640960693,
+        "NG_DESALINHADO": 0.4708186984062195,
+        "NG_DANIFICADO": 0.23092025518417358
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\USB_20260602_132013_070732_OK.jpg",
+      "filename": "USB_20260602_132013_070732_OK.jpg",
+      "true": "OK",
+      "pred": "NG_DESALINHADO",
+      "confidence": 0.6811370849609375,
+      "probs": {
+        "OK": 0.044525470584630966,
+        "NG_DESALINHADO": 0.6811370849609375,
+        "NG_DANIFICADO": 0.27433741092681885
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\USB_20260602_132100_169126_OK.jpg",
+      "filename": "USB_20260602_132100_169126_OK.jpg",
+      "true": "OK",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.3989977538585663,
+      "probs": {
+        "OK": 0.3523893654346466,
+        "NG_DESALINHADO": 0.24861283600330353,
+        "NG_DANIFICADO": 0.3989977538585663
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\USB_20260602_133859_053201_OK.jpg",
+      "filename": "USB_20260602_133859_053201_OK.jpg",
+      "true": "OK",
+      "pred": "NG_DESALINHADO",
+      "confidence": 0.5240629315376282,
+      "probs": {
+        "OK": 0.3149546682834625,
+        "NG_DESALINHADO": 0.5240629315376282,
+        "NG_DANIFICADO": 0.16098244488239288
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\OK\\USB_20260602_135211_420765_OK.jpg",
+      "filename": "USB_20260602_135211_420765_OK.jpg",
+      "true": "OK",
+      "pred": "NG_DESALINHADO",
+      "confidence": 0.42584559321403503,
+      "probs": {
+        "OK": 0.3874920904636383,
+        "NG_DESALINHADO": 0.42584559321403503,
+        "NG_DANIFICADO": 0.18666228652000427
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\NG_DESALINHADO\\20260331_133804_055749__NG_DESALINHADO__SEM_SERIAL__raw.jpg",
+      "filename": "20260331_133804_055749__NG_DESALINHADO__SEM_SERIAL__raw.jpg",
+      "true": "NG_DESALINHADO",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.5361218452453613,
+      "probs": {
+        "OK": 0.03391946479678154,
+        "NG_DESALINHADO": 0.4299587309360504,
+        "NG_DANIFICADO": 0.5361218452453613
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\NG_DESALINHADO\\20260407_084128_722044__NG_DESALINHADO__SEM_SERIAL__roi.jpg",
+      "filename": "20260407_084128_722044__NG_DESALINHADO__SEM_SERIAL__roi.jpg",
+      "true": "NG_DESALINHADO",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.7107995748519897,
+      "probs": {
+        "OK": 0.16098015010356903,
+        "NG_DESALINHADO": 0.12822023034095764,
+        "NG_DANIFICADO": 0.7107995748519897
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\NG_DESALINHADO\\20260407_085812_225754__NG_DESALINHADO__SEM_SERIAL__roi.jpg",
+      "filename": "20260407_085812_225754__NG_DESALINHADO__SEM_SERIAL__roi.jpg",
+      "true": "NG_DESALINHADO",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.6495411992073059,
+      "probs": {
+        "OK": 0.28507620096206665,
+        "NG_DESALINHADO": 0.06538252532482147,
+        "NG_DANIFICADO": 0.6495411992073059
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\NG_DESALINHADO\\20260407_090211_799459__NG_DESALINHADO__SEM_SERIAL__roi.jpg",
+      "filename": "20260407_090211_799459__NG_DESALINHADO__SEM_SERIAL__roi.jpg",
+      "true": "NG_DESALINHADO",
+      "pred": "OK",
+      "confidence": 0.4685670733451843,
+      "probs": {
+        "OK": 0.4685670733451843,
+        "NG_DESALINHADO": 0.1306934654712677,
+        "NG_DANIFICADO": 0.40073952078819275
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\NG_DESALINHADO\\NG_DESALINHADO__USB_20260511_072354_934191_NG_DESALINHADO.jpg",
+      "filename": "NG_DESALINHADO__USB_20260511_072354_934191_NG_DESALINHADO.jpg",
+      "true": "NG_DESALINHADO",
+      "pred": "NG_DANIFICADO",
+      "confidence": 0.7456883788108826,
+      "probs": {
+        "OK": 0.004056077916175127,
+        "NG_DESALINHADO": 0.2502554953098297,
+        "NG_DANIFICADO": 0.7456883788108826
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\NG_DANIFICADO\\20260407_083720_626788__NG_DANIFICADO__SEM_SERIAL__roi.jpg",
+      "filename": "20260407_083720_626788__NG_DANIFICADO__SEM_SERIAL__roi.jpg",
+      "true": "NG_DANIFICADO",
+      "pred": "OK",
+      "confidence": 0.6712793707847595,
+      "probs": {
+        "OK": 0.6712793707847595,
+        "NG_DESALINHADO": 0.04129371792078018,
+        "NG_DANIFICADO": 0.2874268889427185
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\NG_DANIFICADO\\20260407_083740_263892__NG_DANIFICADO__SEM_SERIAL__roi.jpg",
+      "filename": "20260407_083740_263892__NG_DANIFICADO__SEM_SERIAL__roi.jpg",
+      "true": "NG_DANIFICADO",
+      "pred": "NG_DESALINHADO",
+      "confidence": 0.48258405923843384,
+      "probs": {
+        "OK": 0.3450593650341034,
+        "NG_DESALINHADO": 0.48258405923843384,
+        "NG_DANIFICADO": 0.17235666513442993
+      }
+    },
+    {
+      "file": "C:\\SVC_INSPECAO_USB\\dataset_usb_v17_mix_split\\test\\NG_DANIFICADO\\USB_20260602_134827_771263_NG_DANIFICADO.jpg",
+      "filename": "USB_20260602_134827_771263_NG_DANIFICADO.jpg",
+      "true": "NG_DANIFICADO",
+      "pred": "OK",
+      "confidence": 0.5395873188972473,
+      "probs": {
+        "OK": 0.5395873188972473,
+        "NG_DESALINHADO": 0.05829469859600067,
+        "NG_DANIFICADO": 0.4021180272102356
+      }
+    }
+  ]
+}
