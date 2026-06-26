@@ -20,6 +20,7 @@ REPORTS_DIR = BASE_DIR / "reports"
 UPLOAD_DIR = BASE_DIR / "upload_tests"
 CONFIG_PATH = BASE_DIR / "config_usb.json"
 EMAIL_CONFIG_PATH = BASE_DIR / "config_email.json"
+RECIPES_DIR = BASE_DIR / "recipes"
 HEARTBEAT_PATH = RUNTIME / "heartbeat.json"
 LAST_RESULT_PATH = RUNTIME / "last_result.json"
 SUMMARY_PATH = RUNTIME / "summary.json"
@@ -70,6 +71,38 @@ def load_config():
 
 def save_config(cfg):
     write_json(CONFIG_PATH, cfg)
+
+def list_available_recipes():
+    """Carrega os modelos/produtos cadastrados na pasta recipes."""
+    recipes = []
+
+    try:
+        if RECIPES_DIR.exists():
+            for recipe_file in sorted(RECIPES_DIR.glob("*.json")):
+                data = read_json(recipe_file, {}) or {}
+                model_id = str(data.get("model_id", recipe_file.stem)).strip()
+                status = str(data.get("status", "UNKNOWN")).strip()
+                released = bool(data.get("released_for_production", False))
+
+                if model_id:
+                    recipes.append({
+                        "model_id": model_id,
+                        "status": status,
+                        "released_for_production": released,
+                        "recipe_file": str(recipe_file)
+                    })
+    except Exception:
+        recipes = []
+
+    if not recipes:
+        recipes = [{
+            "model_id": "UNICORN_WHITE",
+            "status": "RELEASED",
+            "released_for_production": True,
+            "recipe_file": ""
+        }]
+
+    return recipes
 
 
 def normalize_serial_qr(serial: str) -> str:
@@ -371,7 +404,32 @@ with st.sidebar:
     production_order = st.text_input("Ordem de Produção", value=str(ctx0.get("production_order", cfg.get("production_order", ""))), placeholder="Ex.: BK4338BRI_Y25")
     equipment_id = st.text_input("Equipment ID", value=str(ctx0.get("equipment_id", cfg.get("equipment_id", "SVC01"))))
     line_name = st.text_input("Linha", value=str(ctx0.get("line_name", cfg.get("line_name", "L01"))))
-    product_model = st.text_input("Modelo", value=str(ctx0.get("product_model", cfg.get("product_model", "UNDEFINED"))))
+    available_recipes = list_available_recipes()
+    recipe_ids = [r["model_id"] for r in available_recipes]
+
+    current_model = str(ctx0.get("product_model", cfg.get("product_model", "")) or "").strip()
+
+    if current_model not in recipe_ids:
+        current_model = "UNICORN_WHITE" if "UNICORN_WHITE" in recipe_ids else recipe_ids[0]
+
+    selected_model_index = recipe_ids.index(current_model)
+
+    product_model = st.selectbox(
+        "Modelo",
+        options=recipe_ids,
+        index=selected_model_index,
+        help="Selecione o modelo/produto conforme a Ordem de Produção."
+    )
+
+    selected_recipe = next((r for r in available_recipes if r["model_id"] == product_model), None)
+
+    if selected_recipe:
+        st.caption(
+            f"Receita: {selected_recipe.get('model_id')} | "
+            f"Status: {selected_recipe.get('status')} | "
+            f"Produção liberada: {'SIM' if selected_recipe.get('released_for_production') else 'NÃO'}"
+        )
+        
     if "serial_scan_input" not in st.session_state:
         st.session_state["serial_scan_input"] = ""
     st.text_input(
