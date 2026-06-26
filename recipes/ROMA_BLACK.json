@@ -1,0 +1,30 @@
+﻿{
+  "model_id": "ROMA_BLACK",
+  "status": "NPI",
+  "description": "Produto novo USB-C preto - desenvolvimento NPI",
+  "product_family": "USB_C",
+  "inspection_mode": "3_CLASSES",
+  "classes": [
+    "OK",
+    "NG_DESALINHADO",
+    "NG_DANIFICADO"
+  ],
+  "model_path": "models/ROMA_BLACK/roma_black_v01.keras",
+  "dataset_path": "datasets/ROMA_BLACK",
+  "log_path": "logs/ROMA_BLACK",
+  "roi": {
+    "x0": 0,
+    "x1": 100,
+    "y0": 0,
+    "y1": 100
+  },
+  "thresholds": {
+    "OK": 0.70,
+    "NG_DESALINHADO": 0.70,
+    "NG_DANIFICADO": 0.70
+  },
+  "preprocessing": {
+    "normalize_lab_equalize": true
+  },
+  "released_for_production": false
+}
