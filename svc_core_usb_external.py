@@ -33,6 +33,7 @@ MES_XML_DIR = LOG_DIR / "mes_xml"
 CURRENT_CONTEXT_PATH = RUNTIME / "current_serial.json"
 AUTO_REPORT_STATE_PATH = RUNTIME / "auto_report_state.json"
 CORE_VERSION = "SVC_USB_v17_2_refresh500"
+CORE_STARTED_AT_EPOCH = time.time()
 OFFICIAL_CLASSES = ["OK", "NG_DESALINHADO", "NG_DANIFICADO"]
 
 for p in [RUNTIME, LOG_DIR, REPORTS_DIR, MODELS_DIR, MES_XML_DIR]:
@@ -176,6 +177,66 @@ def resolve_recipe_model_path(recipe: dict):
 
     return p
 
+def enable_keras_legacy_batchnorm_renorm_compat():
+    """Remove parametros antigos de BatchNormalization salvos por versoes antigas do Keras.
+
+    Alguns modelos .keras antigos salvam renorm, renorm_clipping e renorm_momentum.
+    Versoes atuais do Keras nao aceitam mais esses argumentos na desserializacao.
+    """
+    bn_classes = []
+
+    try:
+        bn_classes.append(tf.keras.layers.BatchNormalization)
+    except Exception:
+        pass
+
+    try:
+        import keras
+        bn_classes.append(keras.layers.BatchNormalization)
+    except Exception:
+        pass
+
+    for bn_cls in bn_classes:
+        try:
+            if getattr(bn_cls, "_svc_usb_renorm_compat_enabled", False):
+                continue
+
+            original_from_config = bn_cls.from_config
+
+            def patched_from_config(cls, config, _original_from_config=original_from_config):
+                config = dict(config)
+                config.pop("renorm", None)
+                config.pop("renorm_clipping", None)
+                config.pop("renorm_momentum", None)
+                return _original_from_config(config)
+
+            bn_cls.from_config = classmethod(patched_from_config)
+            bn_cls._svc_usb_renorm_compat_enabled = True
+
+        except Exception:
+            pass
+
+
+def load_keras_model_compat(model_file):
+    """Carrega modelos .keras antigos com compatibilidade para BatchNormalization."""
+    enable_keras_legacy_batchnorm_renorm_compat()
+
+    try:
+        return tf.keras.models.load_model(
+            str(model_file),
+            compile=False,
+            safe_mode=False,
+        )
+    except TypeError as e:
+        # Algumas versoes do TensorFlow/Keras nao aceitam safe_mode.
+        if "safe_mode" in str(e):
+            return tf.keras.models.load_model(
+                str(model_file),
+                compile=False,
+            )
+        raise
+
+
 def load_labels():
     # 3CLASS LOCK — não lê labels antigos de 4 classes.
     # O SVC USB operacional deve trabalhar apenas com:
@@ -190,13 +251,14 @@ def load_model():
     product_model = str(cfg.get("product_model", "UNDEFINED")).strip()
     recipe = load_recipe_for_model(product_model)
     recipe_model_path = resolve_recipe_model_path(recipe)
+    recipe_path = str(recipe.get("recipe_path", "")) if recipe else ""
 
     candidates = []
 
     if recipe_model_path:
         candidates.append(recipe_model_path)
 
-    # Fallback legado para não quebrar o UNICORN_WHITE enquanto migramos para receitas.
+    # Fallback legado para nao quebrar o UNICORN_WHITE enquanto migramos para receitas.
     candidates.extend([
         BASE_DIR / "outputs_usb_v15_3class" / "model_final.keras",
         BASE_DIR / "model_final.keras",
@@ -212,19 +274,28 @@ def load_model():
             continue
 
         try:
-            model = tf.keras.models.load_model(str(p))
+            model = load_keras_model_compat(p)
             out_dim = int(model.output_shape[-1]) if model.output_shape[-1] is not None else None
 
             if out_dim == len(labels):
+                model_source = "recipe" if recipe_model_path and Path(p) == Path(recipe_model_path) else "legacy_fallback"
+
+                model_info = {
+                    "product_model_loaded": product_model,
+                    "recipe_path": recipe_path,
+                    "recipe_model_path": str(recipe_model_path) if recipe_model_path else "",
+                    "model_path": str(p),
+                    "model_path_loaded": str(p),
+                    "model_source": model_source,
+                }
+
                 log_event(
                     "model_loaded",
-                    product_model=product_model,
-                    recipe_path=str(recipe.get("recipe_path", "")) if recipe else "",
-                    model_path=str(p),
+                    **model_info,
                     labels=labels,
                     output_shape=str(model.output_shape)
                 )
-                return model, labels, str(p)
+                return model, labels, str(p), model_info
 
             errors.append({
                 "path": str(p),
@@ -235,7 +306,7 @@ def load_model():
         except Exception as e:
             errors.append({"path": str(p), "error": repr(e)})
 
-    raise RuntimeError(f"Nenhum modelo compatível encontrado. Candidatos/erros: {errors}")
+    raise RuntimeError(f"Nenhum modelo compativel encontrado. Candidatos/erros: {errors}")
 
 
 def open_camera(cfg):
@@ -687,12 +758,27 @@ def write_heartbeat(state, cycle=0, extra=None):
     """Atualiza o heartbeat sem derrubar o core.
 
     Em Windows, o arquivo heartbeat.json pode ficar bloqueado por leitura
-    momentânea do Streamlit, antivírus ou Explorer. Esse arquivo é apenas
-    diagnóstico; falha de escrita nele não pode parar a inspeção.
+    momentanea do Streamlit, antivirus ou Explorer. Esse arquivo e apenas
+    diagnostico; falha de escrita nele nao pode parar a inspecao.
     """
-    payload = {"timestamp": now(), "state": state, "cycle": cycle, "core_version": CORE_VERSION, "pid": os.getpid()}
+    try:
+        config_mtime = CONFIG_PATH.stat().st_mtime
+    except Exception:
+        config_mtime = None
+
+    payload = {
+        "timestamp": now(),
+        "state": state,
+        "cycle": cycle,
+        "core_version": CORE_VERSION,
+        "pid": os.getpid(),
+        "core_started_at_epoch": CORE_STARTED_AT_EPOCH,
+        "config_mtime": config_mtime,
+    }
+
     if extra:
         payload.update(extra)
+
     try:
         atomic_write_json(HEARTBEAT_PATH, payload, retries=5, delay=0.02)
     except PermissionError as e:
@@ -1326,7 +1412,7 @@ def main():
     print("=" * 70)
     cfg = load_config()
     log_event("core_start", config=cfg)
-    model, labels, model_path = load_model()
+    model, labels, model_path, model_info = load_model()
     cap = open_camera(cfg)
     ser = None
     serial_info = {"serial_state": "OFF", "serial_error": ""}
@@ -1340,7 +1426,7 @@ def main():
     }
     cycle = 0
     last_cmd_ts = None
-    write_heartbeat("RUNNING", cycle, {"camera_index": cfg.get("camera_index"), "mode": "MANUAL/SCANNER/SENSOR", "model_path": model_path, "labels": labels})
+    write_heartbeat("RUNNING", cycle, {"camera_index": cfg.get("camera_index"), "mode": "MANUAL/SCANNER/SENSOR", "model_path": model_path, "labels": labels, **model_info})
     try:
         while True:
             cfg = load_config()
@@ -1350,6 +1436,12 @@ def main():
                 "mode": "SENSOR" if bool(cfg.get("serial_enabled", False)) else "MANUAL",
                 "model_path": model_path,
                 "labels": labels,
+                "product_model_config_current": cfg.get("product_model"),
+                "product_model_loaded": model_info.get("product_model_loaded", ""),
+                "recipe_path": model_info.get("recipe_path", ""),
+                "recipe_model_path": model_info.get("recipe_model_path", ""),
+                "model_path_loaded": model_info.get("model_path_loaded", model_path),
+                "model_source": model_info.get("model_source", ""),
                 "serial_port": cfg.get("serial_port"),
                 "serial_state": serial_info.get("serial_state", "OFF"),
                 "serial_error": serial_info.get("serial_error", ""),

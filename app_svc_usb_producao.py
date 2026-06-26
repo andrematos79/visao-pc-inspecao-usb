@@ -524,13 +524,28 @@ hb = heartbeat()
 res = last_result()
 sm = summary()
 ack_data = ack()
-status = hb.get("state", "OFFLINE")
+
+status_raw = hb.get("state", "OFFLINE") if hb else "OFFLINE"
+status = status_raw
 age = "---"
+hb_age_seconds = None
+hb_is_fresh = False
+
+selected_product_model = str(cfg.get("product_model", "UNDEFINED")).strip()
+loaded_product_model = str(hb.get("product_model_loaded") or hb.get("product_model") or "").strip()
+
 try:
     t = datetime.strptime(hb.get("timestamp", ""), "%Y-%m-%d %H:%M:%S.%f")
-    age = f"{(datetime.now() - t).total_seconds():.1f}s"
+    hb_age_seconds = (datetime.now() - t).total_seconds()
+    age = f"{hb_age_seconds:.1f}s"
+    hb_is_fresh = hb_age_seconds <= 10.0
 except Exception:
     pass
+
+if not hb:
+    status = "OFFLINE"
+elif not hb_is_fresh:
+    status = f"{status_raw} (ANTIGO)"
 
 with st.sidebar.expander("Estado do sensor", expanded=True):
     st.write("Serial:", hb.get("serial_state", "OFF"))
@@ -730,11 +745,19 @@ with tabs[6]:
         if st.button("Salvar config_usb.json", disabled=not st.session_state.eng_unlocked):
             cfg.update({"camera_index": camera_index, "camera_backend": camera_backend, "roi_x0": rx0, "roi_y0": ry0, "roi_x1": rx1, "roi_y1": ry1, "save_all_captures": save_all, "save_ng_images": save_ng, "retention_days": int(keep_days), "block_without_serial": bool(block_without_serial), "clear_serial_after_inspection": bool(clear_after), "mes_xml_enabled": bool(mes_xml_enabled)})
             save_config(cfg)
-            st.success("Config salva. Reinicie o core para garantir aplicação completa.")
+            st.success("Config salva. Confira o status do CORE; se o produto carregado estiver diferente do selecionado, reinicie o CORE.")
     st.markdown("#### ACK")
     st.json(ack_data, expanded=False)
     st.markdown("#### Heartbeat")
     st.json(hb, expanded=False)
+    st.caption(f"Produto selecionado no app: {selected_product_model or '---'}")
+    st.caption(f"Produto carregado no CORE: {loaded_product_model or '---'}")
+    st.caption(f"Origem do modelo: {hb.get('model_source', '---')}")
+    st.caption(f"Modelo carregado: {hb.get('model_path_loaded') or hb.get('model_path') or '---'}")
+    if hb and not hb_is_fresh:
+        st.warning("Heartbeat antigo. O CORE pode estar parado, travado ou encerrado.")
+    elif hb_is_fresh and loaded_product_model and loaded_product_model != selected_product_model:
+        st.warning("CORE ativo, mas carregado com outro produto/modelo. Reinicie o CORE para aplicar a selecao atual.")
     st.markdown("#### Summary")
     st.json(sm, expanded=False)
     if IND_LOG_PATH.exists():
