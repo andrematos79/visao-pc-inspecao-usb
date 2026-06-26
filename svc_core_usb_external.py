@@ -18,6 +18,7 @@ RUNTIME = BASE_DIR / "runtime_status"
 LOG_DIR = BASE_DIR / "logs"
 REPORTS_DIR = BASE_DIR / "reports"
 MODELS_DIR = BASE_DIR / "models"
+RECIPES_DIR = BASE_DIR / "recipes"
 CONFIG_PATH = BASE_DIR / "config_usb.json"
 EMAIL_CONFIG_PATH = BASE_DIR / "config_email.json"
 HEARTBEAT_PATH = RUNTIME / "heartbeat.json"
@@ -69,7 +70,7 @@ def atomic_write_json(path: Path, payload: dict, retries: int = 20, delay: float
 def read_json(path: Path, default=None):
     try:
         if Path(path).exists():
-            return json.loads(Path(path).read_text(encoding="utf-8"))
+            return json.loads(Path(path).read_text(encoding="utf-8-sig"))
     except Exception:
         return default
     return default
@@ -140,6 +141,40 @@ def load_config():
     cfg.setdefault("cycle_time_logger_enabled", True)
     return cfg
 
+def load_recipe_for_model(product_model: str):
+    """Carrega a receita do produto/modelo selecionado no config_usb.json."""
+    model_id = str(product_model or "").strip()
+
+    if not model_id or model_id == "UNDEFINED":
+        return None
+
+    recipe_path = RECIPES_DIR / f"{model_id}.json"
+    recipe = read_json(recipe_path, None)
+
+    if not recipe:
+        log_event("recipe_not_found", product_model=model_id, recipe_path=str(recipe_path))
+        return None
+
+    recipe["recipe_path"] = str(recipe_path)
+    return recipe
+
+
+def resolve_recipe_model_path(recipe: dict):
+    """Resolve o caminho do modelo IA definido na receita."""
+    if not recipe:
+        return None
+
+    model_path = str(recipe.get("model_path", "")).strip()
+
+    if not model_path:
+        return None
+
+    p = Path(model_path)
+
+    if not p.is_absolute():
+        p = BASE_DIR / p
+
+    return p
 
 def load_labels():
     # 3CLASS LOCK — não lê labels antigos de 4 classes.
@@ -150,25 +185,56 @@ def load_labels():
 
 def load_model():
     labels = load_labels()
-    candidates = [
+    cfg = load_config()
+
+    product_model = str(cfg.get("product_model", "UNDEFINED")).strip()
+    recipe = load_recipe_for_model(product_model)
+    recipe_model_path = resolve_recipe_model_path(recipe)
+
+    candidates = []
+
+    if recipe_model_path:
+        candidates.append(recipe_model_path)
+
+    # Fallback legado para não quebrar o UNICORN_WHITE enquanto migramos para receitas.
+    candidates.extend([
         BASE_DIR / "outputs_usb_v15_3class" / "model_final.keras",
         BASE_DIR / "model_final.keras",
         MODELS_DIR / "model_final.keras",
         BASE_DIR / "outputs_usb_v15_3class" / "best_model.keras",
-    ]
+    ])
+
     errors = []
+
     for p in candidates:
         if not p.exists():
+            errors.append({"path": str(p), "error": "file_not_found"})
             continue
+
         try:
             model = tf.keras.models.load_model(str(p))
             out_dim = int(model.output_shape[-1]) if model.output_shape[-1] is not None else None
+
             if out_dim == len(labels):
-                log_event("model_loaded", model_path=str(p), labels=labels, output_shape=str(model.output_shape))
+                log_event(
+                    "model_loaded",
+                    product_model=product_model,
+                    recipe_path=str(recipe.get("recipe_path", "")) if recipe else "",
+                    model_path=str(p),
+                    labels=labels,
+                    output_shape=str(model.output_shape)
+                )
                 return model, labels, str(p)
-            errors.append({"path": str(p), "output_shape": str(model.output_shape), "labels": len(labels)})
+
+            errors.append({
+                "path": str(p),
+                "output_shape": str(model.output_shape),
+                "labels": len(labels)
+            })
+
         except Exception as e:
             errors.append({"path": str(p), "error": repr(e)})
+
     raise RuntimeError(f"Nenhum modelo compatível encontrado. Candidatos/erros: {errors}")
 
 
