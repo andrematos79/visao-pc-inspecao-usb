@@ -68,6 +68,28 @@ def write_json(path, payload):
 def load_config():
     return read_json(CONFIG_PATH, {}) or {}
 
+def active_dataset_dir_from_recipe(cfg):
+    """Resolve a pasta de dataset a partir da receita do produto ativo."""
+    product_model = str(cfg.get("product_model", "UNDEFINED")).strip()
+
+    recipe = {}
+    if product_model and product_model != "UNDEFINED":
+        recipe_path = RECIPES_DIR / f"{product_model}.json"
+        recipe = read_json(recipe_path, {}) or {}
+        if recipe:
+            recipe["recipe_path"] = str(recipe_path)
+
+    dataset_path = str(recipe.get("dataset_path") or cfg.get("dataset_dir", "dataset_usb_live_capture")).strip()
+    if not dataset_path:
+        dataset_path = "dataset_usb_live_capture"
+
+    p = Path(dataset_path)
+    if not p.is_absolute():
+        p = BASE_DIR / p
+
+    return p, recipe, product_model
+
+
 
 def save_config(cfg):
     write_json(CONFIG_PATH, cfg)
@@ -638,16 +660,25 @@ with tabs[1]:
 
 with tabs[2]:
     st.subheader("Coleta / Curadoria de Dataset")
-    dataset_dir = BASE_DIR / str(cfg.get("dataset_dir", "dataset_usb_live_capture"))
-    st.caption(f"Pasta de captura/dataset operacional: {dataset_dir}")
+
+    dataset_dir, dataset_recipe, dataset_product_model = active_dataset_dir_from_recipe(cfg)
+    dataset_status = dataset_recipe.get("status", "---") if dataset_recipe else "---"
+    dataset_released = bool(dataset_recipe.get("released_for_production", False)) if dataset_recipe else False
+
+    st.caption(f"Produto ativo para dataset: {dataset_product_model or '---'}")
+    st.caption(f"Pasta de dataset da receita: {dataset_dir}")
+    st.caption(f"Status: {dataset_status} | Producao liberada: {'SIM' if dataset_released else 'NAO'}")
+
     cols = st.columns(3)
     for col, cls in zip(cols, CLASSES):
         with col:
             st.metric(cls, count_imgs(dataset_dir / cls))
-            if st.button(f"Salvar último ROI como {cls}", key=f"save_{cls}", disabled=not st.session_state.eng_unlocked, use_container_width=True):
+            if st.button(f"Salvar ultimo ROI como {cls}", key=f"save_{cls}", disabled=not st.session_state.eng_unlocked, use_container_width=True):
                 send_command("save_dataset", class_name=cls, source="streamlit_dataset_button")
                 st.success(f"Comando enviado: {cls}")
-    st.info("Recomendação: use esta pasta como captura operacional. Promova manualmente imagens boas para dataset_usb_v15.")
+
+    st.info("Dataset multiproduto ativo. As imagens serao salvas na pasta dataset_path definida pela receita do produto selecionado.")
+
 
 with tabs[3]:
     st.subheader("Relatórios de Auditoria e E-mail")

@@ -793,25 +793,65 @@ def write_heartbeat(state, cycle=0, extra=None):
             pass
 
 
+def resolve_dataset_root_from_recipe(cfg):
+    """Resolve a pasta raiz de dataset usando a receita do produto ativo."""
+    product_model = str(cfg.get("product_model", "UNDEFINED")).strip()
+
+    recipe = load_recipe_for_model(product_model)
+    dataset_path = ""
+
+    if recipe:
+        dataset_path = str(recipe.get("dataset_path", "")).strip()
+
+    if not dataset_path:
+        dataset_path = str(cfg.get("dataset_dir", "dataset_usb_live_capture")).strip()
+
+    if not dataset_path:
+        dataset_path = "dataset_usb_live_capture"
+
+    p = Path(dataset_path)
+    if not p.is_absolute():
+        p = BASE_DIR / p
+
+    return p, recipe, product_model
+
+
 def handle_dataset_copy(req):
     cls = str(req.get("class_name", "OK")).upper().strip()
     cfg = load_config()
     allowed = set(cfg.get("dataset_classes", OFFICIAL_CLASSES))
     if cls not in allowed:
-        raise RuntimeError(f"Classe inválida: {cls}")
+        raise RuntimeError(f"Classe invalida: {cls}")
+
     last = read_json(LAST_RESULT_PATH, {}) or {}
     src_roi = req.get("image_path") or last.get("image_paths", {}).get("roi") or last.get("roi_path")
     if not src_roi or not Path(src_roi).exists():
-        raise RuntimeError("Nenhuma ROI disponível para salvar.")
-    ds_root = BASE_DIR / str(cfg.get("dataset_dir", "dataset_usb_live_capture"))
+        raise RuntimeError("Nenhuma ROI disponivel para salvar.")
+
+    ds_root, recipe, product_model = resolve_dataset_root_from_recipe(cfg)
     out_dir = ds_root / cls
     out_dir.mkdir(parents=True, exist_ok=True)
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    dst = out_dir / f"USB_{ts}_{cls}.jpg"
+    safe_model = product_model if product_model and product_model != "UNDEFINED" else "USB"
+    dst = out_dir / f"{safe_model}_{ts}_{cls}.jpg"
+
     shutil.copy2(src_roi, dst)
-    atomic_write_json(dst.with_suffix(".json"), {"timestamp": now(), "class_name": cls, "source_image": str(src_roi), "dest_image": str(dst), "last_result": last})
-    log_event("dataset_saved", class_name=cls, dest=str(dst))
-    return {"saved_path": str(dst), "class_name": cls}
+
+    meta = {
+        "timestamp": now(),
+        "product_model": product_model,
+        "recipe_path": str(recipe.get("recipe_path", "")) if recipe else "",
+        "dataset_root": str(ds_root),
+        "class_name": cls,
+        "source_image": str(src_roi),
+        "dest_image": str(dst),
+        "last_result": last,
+    }
+
+    atomic_write_json(dst.with_suffix(".json"), meta)
+    log_event("dataset_saved", product_model=product_model, class_name=cls, dest=str(dst), dataset_root=str(ds_root))
+    return {"saved_path": str(dst), "class_name": cls, "product_model": product_model, "dataset_root": str(ds_root)}
 
 
 def read_csv_rows(period="today"):
