@@ -354,18 +354,85 @@ def safe_capture(cap, cfg):
     raise RuntimeError("Falha ao capturar frame da câmera.")
 
 
+def _norm_roi_value(v):
+    """
+    Aceita ROI em dois formatos:
+    - Receita: 0 a 100
+    - Config legado: 0.0 a 1.0
+    """
+    v = float(v)
+    if abs(v) > 1.0:
+        v = v / 100.0
+    return max(0.0, min(1.0, v))
+
+
+def resolve_roi_norm(cfg):
+    """
+    Resolve ROI ativo.
+    Prioridade:
+    1) ROI da receita do produto selecionado
+    2) ROI global legado do config_usb.json
+    """
+    product_model = str(cfg.get("product_model", "UNDEFINED")).strip()
+    recipe = load_recipe_for_model(product_model)
+
+    if recipe:
+        recipe_roi = recipe.get("roi", None)
+
+        if isinstance(recipe_roi, dict):
+            try:
+                rx0 = _norm_roi_value(recipe_roi.get("x0", 0.0))
+                rx1 = _norm_roi_value(recipe_roi.get("x1", 1.0))
+                ry0 = _norm_roi_value(recipe_roi.get("y0", 0.0))
+                ry1 = _norm_roi_value(recipe_roi.get("y1", 1.0))
+
+                rx0, rx1 = sorted([rx0, rx1])
+                ry0, ry1 = sorted([ry0, ry1])
+
+                if rx1 > rx0 and ry1 > ry0:
+                    return rx0, ry0, rx1, ry1, {
+                        "roi_source": "recipe",
+                        "product_model": product_model,
+                        "recipe_path": str(recipe.get("recipe_path", ""))
+                    }
+            except Exception as e:
+                log_event(
+                    "recipe_roi_invalid_fallback_to_config",
+                    product_model=product_model,
+                    error=repr(e)
+                )
+
+    rx0 = _norm_roi_value(cfg.get("roi_x0", 0.0))
+    rx1 = _norm_roi_value(cfg.get("roi_x1", 1.0))
+    ry0 = _norm_roi_value(cfg.get("roi_y0", 0.0))
+    ry1 = _norm_roi_value(cfg.get("roi_y1", 1.0))
+
+    rx0, rx1 = sorted([rx0, rx1])
+    ry0, ry1 = sorted([ry0, ry1])
+
+    return rx0, ry0, rx1, ry1, {
+        "roi_source": "config_usb",
+        "product_model": product_model,
+        "recipe_path": ""
+    }
+
+
 def roi_pixels(frame, cfg):
     h, w = frame.shape[:2]
-    x0 = int(max(0, min(1, float(cfg.get("roi_x0", 0.0)))) * w)
-    x1 = int(max(0, min(1, float(cfg.get("roi_x1", 1.0)))) * w)
-    y0 = int(max(0, min(1, float(cfg.get("roi_y0", 0.0)))) * h)
-    y1 = int(max(0, min(1, float(cfg.get("roi_y1", 1.0)))) * h)
+    rx0, ry0, rx1, ry1, _roi_meta = resolve_roi_norm(cfg)
+
+    x0 = int(rx0 * w)
+    x1 = int(rx1 * w)
+    y0 = int(ry0 * h)
+    y1 = int(ry1 * h)
+
     x0, x1 = sorted([x0, x1])
     y0, y1 = sorted([y0, y1])
-    if x1 <= x0 or y1 <= y0:
-        raise RuntimeError("ROI inválida.")
-    return x0, y0, x1, y1
 
+    if x1 <= x0 or y1 <= y0:
+        raise RuntimeError("ROI invalida.")
+
+    return x0, y0, x1, y1
 
 def draw_overlay(frame, cfg, result_text=None):
     img = frame.copy()
