@@ -1,0 +1,37 @@
+SVC USB - NAPLES_BLACK v0.1 / NPI
+====================================
+Script version: NAPLES_BLACK_v01_STRATIFIED_SPLIT_FIX_2026_07_07
+Dataset: C:\SVC_INSPECAO_USB_GIT\datasets\NAPLES_BLACK_AUG200
+Modelo salvo: C:\SVC_INSPECAO_USB_GIT\models\NAPLES_BLACK\naples_black_v01.keras
+Melhor modelo usado: current_memory
+
+Contagem total por classe:
+- OK: 200
+- NG_DESALINHADO: 200
+- NG_DANIFICADO: 200
+
+Split estratificado:
+- OK: treino=160, validacao=40
+- NG_DESALINHADO: treino=160, validacao=40
+- NG_DANIFICADO: treino=160, validacao=40
+
+Evaluation loss: 0.054585
+Evaluation accuracy: 0.975000
+CM accuracy: 0.975000
+Macro precision: 0.975193
+Macro recall: 0.975000
+Macro F1: 0.974996
+
+Metricas por classe:
+- OK: precision=0.974359, recall=0.950000, f1=0.962025, support=40
+- NG_DESALINHADO: precision=0.951220, recall=0.975000, f1=0.962963, support=40
+- NG_DANIFICADO: precision=1.000000, recall=1.000000, f1=1.000000, support=40
+
+Matriz de confusao - linhas=real, colunas=predito:
+Real\Predito;OK;NG_DESALINHADO;NG_DANIFICADO
+OK;38;2;0
+NG_DESALINHADO;1;39;0
+NG_DANIFICADO;0;0;40
+
+Observacao: dataset NAPLES_BLACK_AUG200 e adequado para treino inicial/NPI.
+A classe NG_DESALINHADO nasceu de apenas 17 imagens reais e deve ser reforcada em v0.2.

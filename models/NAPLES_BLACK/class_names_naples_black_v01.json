@@ -1,0 +1,9 @@
+{
+  "script_version": "NAPLES_BLACK_v01_STRATIFIED_SPLIT_FIX_2026_07_07",
+  "class_names": [
+    "OK",
+    "NG_DESALINHADO",
+    "NG_DANIFICADO"
+  ],
+  "dataset": "C:\\SVC_INSPECAO_USB_GIT\\datasets\\NAPLES_BLACK_AUG200"
+}
