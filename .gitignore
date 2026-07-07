@@ -48,3 +48,15 @@ desktop.ini
 # Arquivos pesados
 sem-sem_github/
 config_email.json
+
+# Datasets locais - não subir para GitHub
+datasets/
+
+# Checkpoints auxiliares de treino
+models/NAPLES_BLACK/*_head.keras
+models/NAPLES_BLACK/*_fine.keras
+models/NAPLES_BLACK/history_*_head.csv
+models/NAPLES_BLACK/history_*_fine.csv
+
+# Script antigo/substituído
+train_naples_black_v01_aug200.py
