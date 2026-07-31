@@ -1,38 +1,46 @@
 cff-version: 1.2.0
-title: "SVC USB — Computer Vision System for USB Connector Inspection"
 message: "If you use this software, please cite it as below."
 type: software
 
+title: "SVC USB — Computer Vision System for USB Connector Inspection"
+
 authors:
   - family-names: "Matos"
-    given-names: "Andre Gama de"
+    given-names: "André Gama de"
     orcid: "https://orcid.org/0000-0001-5178-7796"
-    affiliation: "UNIFATECIE"
+    affiliation: "Centro Universitário UNIFATECIE"
 
-version: "v0.1.0"
-date-released: 2026-04-06
+  - family-names: "Santos"
+    given-names: "Lucas Delapria Dias dos"
+    affiliation: "Centro Universitário UNIFATECIE"
 
-doi: 10.5281/zenodo.19323586
+version: "2.2.3"
+date-released: 2026-06-03
+doi: "10.5281/zenodo.20531766"
 
 repository-code: "https://github.com/andrematos79/visao-pc-inspecao-usb"
+url: "https://github.com/andrematos79/visao-pc-inspecao-usb/releases/tag/v2.2.3-production-candidate"
 
 abstract: >
- Computer vision system based on convolutional neural networks
- for automated inspection of USB connectors used in mobile phone chargers.
- This release corresponds to a research prototype currently under
- industrial ROI calibration.
- The system evolved from an academic prototype into a version
- validated in a real industrial environment.
+  Low-cost computer vision system for automated inspection of USB Type-A
+  connectors in mobile phone chargers. The software integrates QR code
+  identification, image acquisition, region-of-interest processing,
+  MobileNetV2 multiclass classification, operator interface, traceability,
+  production statistics, and automated reporting. Version 2.2.3 corresponds
+  to the Production Candidate release validated for pilot use under real
+  industrial conditions.
 
 keywords:
- - computer vision
- - industrial inspection
- - deep learning
- - convolutional neural networks
- - automated visual inspection
- - manufacturing
- - quality control
- - industrial automation
+  - computer vision
+  - industrial inspection
+  - deep learning
+  - convolutional neural networks
+  - automated visual inspection
+  - manufacturing
+  - quality control
+  - industrial automation
+  - traceability
 
 license: "MIT"
+
 
