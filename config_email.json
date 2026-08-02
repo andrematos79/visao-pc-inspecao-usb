@@ -1,9 +1,9 @@
 {
-  "smtp_server": "smtp.gmail.com",
+  "smtp_server": "smtp.example.com",
   "smtp_port": 587,
-  "smtp_user": "svcspringsinspection@gmail.com",
-  "smtp_password": "vnvz ivtg koxc vhua",
+  "smtp_user": "your_email@example.com",
+  "smtp_password": "YOUR_APP_PASSWORD",
   "smtp_use_tls": true,
-  "to": "andrematos79@gmail.com, andrematos37@hotmail.com",
-  "subject": "Relatório SVC USB"
+  "to": "recipient@example.com",
+  "subject": "SVC USB Report"
 }
